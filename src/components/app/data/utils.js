@@ -675,6 +675,7 @@ export function getCatalogsForSubsidyRequests({
 export function getSearchCatalogs({
   redeemablePolicies,
   subscriptionLicense,
+  licensesByCatalog,
   couponCodeAssignments,
   currentEnterpriseOffers,
   catalogsForSubsidyRequests,
@@ -686,7 +687,14 @@ export function getSearchCatalogs({
   // enterprise offers, or subscription plan associated with learner's license.
   redeemablePolicies.forEach((policy) => catalogUUIDs.add(policy.catalogUuid));
 
-  if (subscriptionLicense?.subscriptionPlan.isCurrent && subscriptionLicense?.status === LICENSE_STATUS.ACTIVATED) {
+  if (features.MULTI_LICENSE_SUPPORT && licensesByCatalog) {
+    Object.keys(licensesByCatalog).forEach(
+      (catalogUuid) => catalogUUIDs.add(catalogUuid),
+    );
+  } else if (
+    subscriptionLicense?.subscriptionPlan.isCurrent
+    && subscriptionLicense?.status === LICENSE_STATUS.ACTIVATED
+  ) {
     catalogUUIDs.add(subscriptionLicense.subscriptionPlan.enterpriseCatalogUuid);
   }
   if (features.ENROLL_WITH_CODES) {
@@ -1079,6 +1087,50 @@ export function determineSubscriptionLicenseApplicable(subscriptionLicense, cata
     && subscriptionLicense?.subscriptionPlan.isCurrent
     && catalogsWithCourse.includes(subscriptionLicense?.subscriptionPlan.enterpriseCatalogUuid)
   );
+}
+
+/**
+ * Given a licenses-by-catalog map and the list of catalogs that contain the course,
+ * returns the best applicable license (preferring the one that expires latest).
+ * Falls back to the legacy single-license check when the feature flag is off.
+ *
+ * @param {Object} args
+ * @param {Object} args.licensesByCatalog - Map of catalog UUID -> license array
+ * @param {Array} args.catalogsWithCourse - Catalog UUIDs that contain the course
+ * @param {Object} args.subscriptionLicense - Legacy single license (fallback)
+ * @returns {Object|null} The applicable license, or null
+ */
+export function findLicenseForCourse({
+  licensesByCatalog,
+  catalogsWithCourse,
+  subscriptionLicense,
+}) {
+  if (!features.MULTI_LICENSE_SUPPORT) {
+    const isApplicable = determineSubscriptionLicenseApplicable(subscriptionLicense, catalogsWithCourse);
+    return isApplicable ? subscriptionLicense : null;
+  }
+
+  if (!licensesByCatalog || !catalogsWithCourse?.length) {
+    return null;
+  }
+
+  const candidateLicenses = catalogsWithCourse
+    .flatMap((catalogUuid) => licensesByCatalog[catalogUuid] || [])
+    .filter((license) => (
+      license.status === LICENSE_STATUS.ACTIVATED
+      && license.subscriptionPlan.isCurrent
+    ));
+
+  if (candidateLicenses.length === 0) {
+    return null;
+  }
+
+  // Tie-breaking: prefer the license whose plan expires latest.
+  candidateLicenses.sort((a, b) => (
+    new Date(b.subscriptionPlan.expirationDate) - new Date(a.subscriptionPlan.expirationDate)
+  ));
+
+  return candidateLicenses[0];
 }
 
 /**

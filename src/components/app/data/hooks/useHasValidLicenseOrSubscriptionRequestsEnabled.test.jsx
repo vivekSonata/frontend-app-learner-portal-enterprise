@@ -4,9 +4,13 @@ import { LICENSE_STATUS } from '../../../enterprise-user-subsidy/data/constants'
 import { SUBSIDY_TYPE } from '../../../../constants';
 import { useBrowseAndRequestConfiguration } from './useBrowseAndRequest';
 import useSubscriptions from './useSubscriptions';
+import { features } from '../../../../config';
 
 jest.mock('./useBrowseAndRequest');
 jest.mock('./useSubscriptions');
+jest.mock('../../../../config', () => ({
+  features: {},
+}));
 
 describe('useHasValidLicenseOrSubscriptionRequestsEnabled', () => {
   it('should return true when the subscription license is activated and current', () => {
@@ -18,6 +22,7 @@ describe('useHasValidLicenseOrSubscriptionRequestsEnabled', () => {
             isCurrent: true,
           },
         },
+        licensesByCatalog: {},
       },
     });
     useBrowseAndRequestConfiguration.mockReturnValue({
@@ -40,6 +45,7 @@ describe('useHasValidLicenseOrSubscriptionRequestsEnabled', () => {
             isCurrent: false,
           },
         },
+        licensesByCatalog: {},
       },
     });
     useBrowseAndRequestConfiguration.mockReturnValue({
@@ -62,6 +68,7 @@ describe('useHasValidLicenseOrSubscriptionRequestsEnabled', () => {
             isCurrent: false,
           },
         },
+        licensesByCatalog: {},
       },
     });
     useBrowseAndRequestConfiguration.mockReturnValue({
@@ -79,6 +86,51 @@ describe('useHasValidLicenseOrSubscriptionRequestsEnabled', () => {
     useSubscriptions.mockReturnValue({
       data: {
         subscriptionLicense: undefined,
+        licensesByCatalog: {},
+      },
+    });
+    useBrowseAndRequestConfiguration.mockReturnValue({
+      data: {
+        subsidyRequestsEnabled: false,
+        subsidyType: SUBSIDY_TYPE.LICENSE,
+      },
+    });
+
+    const { result } = renderHook(() => useHasValidLicenseOrSubscriptionRequestsEnabled());
+    expect(result.current).toBe(false);
+  });
+
+  it('should return true when MULTI_LICENSE_SUPPORT is ON and licensesByCatalog has entries', () => {
+    features.MULTI_LICENSE_SUPPORT = true;
+    useSubscriptions.mockReturnValue({
+      data: {
+        subscriptionLicense: null,
+        licensesByCatalog: {
+          'catalog-aaa': [{
+            uuid: 'license-a',
+            status: LICENSE_STATUS.ACTIVATED,
+            subscriptionPlan: { isCurrent: true, enterpriseCatalogUuid: 'catalog-aaa' },
+          }],
+        },
+      },
+    });
+    useBrowseAndRequestConfiguration.mockReturnValue({
+      data: {
+        subsidyRequestsEnabled: false,
+        subsidyType: SUBSIDY_TYPE.LICENSE,
+      },
+    });
+
+    const { result } = renderHook(() => useHasValidLicenseOrSubscriptionRequestsEnabled());
+    expect(result.current).toBe(true);
+  });
+
+  it('should return false when MULTI_LICENSE_SUPPORT is ON and licensesByCatalog is empty', () => {
+    features.MULTI_LICENSE_SUPPORT = true;
+    useSubscriptions.mockReturnValue({
+      data: {
+        subscriptionLicense: null,
+        licensesByCatalog: {},
       },
     });
     useBrowseAndRequestConfiguration.mockReturnValue({

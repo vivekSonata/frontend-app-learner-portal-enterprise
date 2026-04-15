@@ -252,7 +252,14 @@ describe('useCourseUpgradeData', () => {
           catalogList: [],
         },
       });
-      useSubscriptions.mockReturnValue({ data: mockSubscriptionLicense });
+      const isLicenseApplicable = subscriptionLicenseStatus === LICENSE_STATUS.ACTIVATED
+        && isSubscriptionPlanCurrent;
+      useSubscriptions.mockReturnValue({
+        data: {
+          subscriptionLicense: isLicenseApplicable ? mockSubscriptionLicense : null,
+          licensesByCatalog: {},
+        },
+      });
 
       const { result } = renderHook(() => useCourseUpgradeData({
         ...baseArgs,
@@ -266,43 +273,70 @@ describe('useCourseUpgradeData', () => {
         }),
       );
       const useSubscriptionsSelectFn = useSubscriptions.mock.calls[0][0].select;
-      const selectTransformResultLegacy = useSubscriptionsSelectFn({ subscriptionLicense: mockSubscriptionLicense });
+      const selectTransformResultLegacy = useSubscriptionsSelectFn({
+        subscriptionLicense: mockSubscriptionLicense,
+        licensesByCatalog: {},
+      });
       const transformedSubscriptionsBFFData = {
-        original: { subscriptionLicense: mockSubscriptionLicense },
-        transformed: { subscriptionLicense: mockSubscriptionLicense },
+        original: { subscriptionLicense: mockSubscriptionLicense, licensesByCatalog: {} },
+        transformed: { subscriptionLicense: mockSubscriptionLicense, licensesByCatalog: {} },
       };
       const selectTransformResultBFF = useSubscriptionsSelectFn(transformedSubscriptionsBFFData);
       if (subscriptionLicenseStatus === LICENSE_STATUS.ACTIVATED && isSubscriptionPlanCurrent) {
-        expect(selectTransformResultLegacy).toEqual(mockSubscriptionLicense);
-        expect(selectTransformResultBFF).toEqual(mockSubscriptionLicense);
+        expect(selectTransformResultLegacy).toEqual({
+          subscriptionLicense: mockSubscriptionLicense,
+          licensesByCatalog: {},
+        });
+        expect(selectTransformResultBFF).toEqual({
+          subscriptionLicense: mockSubscriptionLicense,
+          licensesByCatalog: {},
+        });
       } else {
-        expect(selectTransformResultLegacy).toBeNull();
-        expect(selectTransformResultBFF).toBeNull();
+        expect(selectTransformResultLegacy).toEqual({
+          subscriptionLicense: null,
+          licensesByCatalog: {},
+        });
+        expect(selectTransformResultBFF).toEqual({
+          subscriptionLicense: null,
+          licensesByCatalog: {},
+        });
       }
 
       // Assert expected output
-      const expectedRedemptionUrl = createEnrollWithLicenseUrl({
-        courseRunKey,
-        enterpriseId,
-        licenseUUID: mockSubscriptionLicense.uuid,
-        location,
-      });
-      expect(result.current).toEqual(
-        expect.objectContaining({
-          subsidyForCourse: expect.objectContaining({
-            redemptionUrl: expectedRedemptionUrl,
+      if (subscriptionLicenseStatus === LICENSE_STATUS.ACTIVATED && isSubscriptionPlanCurrent) {
+        const expectedRedemptionUrl = createEnrollWithLicenseUrl({
+          courseRunKey,
+          enterpriseId,
+          licenseUUID: mockSubscriptionLicense.uuid,
+          location,
+        });
+        expect(result.current).toEqual(
+          expect.objectContaining({
+            subsidyForCourse: expect.objectContaining({
+              redemptionUrl: expectedRedemptionUrl,
+            }),
+            hasUpgradeAndConfirm: false,
+            redeem: expect.any(Function),
           }),
-          hasUpgradeAndConfirm: false,
-          redeem: expect.any(Function),
-        }),
-      );
-      const redeemFn = result.current.redeem;
-      await redeemFn();
-      expect(sendEnterpriseTrackEventWithDelay).toHaveBeenCalledWith(
-        mockEnterpriseCustomer.uuid,
-        'edx.ui.enterprise.learner_portal.course.upgrade_button.subscription_license.clicked',
-      );
-      expect(global.location.assign).toHaveBeenCalledWith(expectedRedemptionUrl);
+        );
+        const redeemFn = result.current.redeem;
+        await redeemFn();
+        expect(sendEnterpriseTrackEventWithDelay).toHaveBeenCalledWith(
+          mockEnterpriseCustomer.uuid,
+          'edx.ui.enterprise.learner_portal.course.upgrade_button.subscription_license.clicked',
+        );
+        expect(global.location.assign).toHaveBeenCalledWith(expectedRedemptionUrl);
+      } else {
+        // When the license is not activated+current, the select function returns null
+        // for subscriptionLicense, so no subsidy is found for the course.
+        expect(result.current).toEqual(
+          expect.objectContaining({
+            subsidyForCourse: null,
+            hasUpgradeAndConfirm: false,
+            redeem: null,
+          }),
+        );
+      }
     });
   });
 

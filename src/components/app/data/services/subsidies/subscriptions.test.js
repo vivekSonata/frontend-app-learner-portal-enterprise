@@ -142,6 +142,7 @@ describe('fetchSubscriptions', () => {
       status: licenseStatus,
       subscriptionPlan: {
         uuid: 'test-subscription-plan-uuid',
+        enterpriseCatalogUuid: 'test-enterprise-catalog-uuid',
         isActive: true,
         isCurrent: isSubscriptionPlanCurrent,
         daysUntilExpiration,
@@ -173,12 +174,18 @@ describe('fetchSubscriptions', () => {
     if (isValidLicenseStatus) {
       expectedLicensesByStatus[licenseStatus].push(mockSubscriptionLicense);
     }
+    // Build expected licensesByCatalog based on license status and plan currency.
+    const expectedLicensesByCatalog = {};
+    if (licenseStatus === LICENSE_STATUS.ACTIVATED && isSubscriptionPlanCurrent) {
+      expectedLicensesByCatalog['test-enterprise-catalog-uuid'] = [mockSubscriptionLicense];
+    }
     const expectedResult = {
       customerAgreement: mockResponse.customerAgreement,
       subscriptionLicensesByStatus: expectedLicensesByStatus,
       subscriptionPlan: isValidLicenseStatus ? mockSubscriptionLicense.subscriptionPlan : null,
       subscriptionLicense: isValidLicenseStatus ? mockSubscriptionLicense : null,
       subscriptionLicenses: [mockSubscriptionLicense],
+      licensesByCatalog: expectedLicensesByCatalog,
       showExpirationNotifications: expectedShowExpirationNotifications,
     };
 
@@ -193,6 +200,7 @@ describe('fetchSubscriptions', () => {
       status: LICENSE_STATUS.ACTIVATED,
       subscriptionPlan: {
         uuid: 'test-subscription-plan-uuid-1',
+        enterpriseCatalogUuid: 'test-renewal-catalog-uuid',
         isActive: true,
         isCurrent: false,
         daysUntilExpiration: mockRenewalEndDate.diff(mockRenewalStartDate, 'days'),
@@ -206,6 +214,7 @@ describe('fetchSubscriptions', () => {
       status: LICENSE_STATUS.ACTIVATED,
       subscriptionPlan: {
         uuid: 'test-subscription-plan-uuid-2',
+        enterpriseCatalogUuid: 'test-current-catalog-uuid',
         isActive: true,
         isCurrent: true,
         daysUntilExpiration: mockRenewalStartDate.diff(mockCurrentStartDate, 'days'),
@@ -243,6 +252,9 @@ describe('fetchSubscriptions', () => {
       subscriptionPlan: mockSubscriptionLicenseCurrent.subscriptionPlan,
       subscriptionLicense: mockSubscriptionLicenseCurrent,
       subscriptionLicenses: [mockSubscriptionLicenseCurrent, mockSubscriptionLicenseRenewal],
+      licensesByCatalog: {
+        'test-current-catalog-uuid': [mockSubscriptionLicenseCurrent],
+      },
       showExpirationNotifications: true,
     };
     expect(response).toEqual(expectedResult);

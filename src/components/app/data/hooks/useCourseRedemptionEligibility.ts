@@ -6,7 +6,7 @@ import useCourseMetadata from './useCourseMetadata';
 import { queryCanRedeem } from '../queries';
 import useEnterpriseCustomer from './useEnterpriseCustomer';
 import useLateEnrollmentBufferDays from './useLateEnrollmentBufferDays';
-import { determineSubscriptionLicenseApplicable, findCouponCodeForCourse, getCourseRunsForRedemption } from '../utils';
+import { findLicenseForCourse, findCouponCodeForCourse, getCourseRunsForRedemption } from '../utils';
 import useCourseRunKeyQueryParam from './useCourseRunKeyQueryParam';
 import useRedeemablePolicies from './useRedeemablePolicies';
 import useSubscriptions from './useSubscriptions';
@@ -104,7 +104,7 @@ export default function useCourseRedemptionEligibility() {
 
   const {
     // @ts-expect-error
-    data: { subscriptionLicense },
+    data: { subscriptionLicense, licensesByCatalog },
   } = useSubscriptions();
 
   const { courseKey } = useParams();
@@ -121,10 +121,12 @@ export default function useCourseRedemptionEligibility() {
   } = useCouponCodes();
   const applicableCouponCode = findCouponCodeForCourse(couponCodeAssignments, catalogsWithCourse);
 
-  const isSubscriptionLicenseApplicable = determineSubscriptionLicenseApplicable(
-    subscriptionLicense,
+  const applicableLicense = findLicenseForCourse({
+    licensesByCatalog,
     catalogsWithCourse,
-  );
+    subscriptionLicense,
+  });
+  const isSubscriptionLicenseApplicable = !!applicableLicense;
   const hasSubsidyPrioritizedOverLearnerCredit = isSubscriptionLicenseApplicable
     || applicableCouponCode?.couponCodeRedemptionCount > 0;
 

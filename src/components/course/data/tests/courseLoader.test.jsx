@@ -234,6 +234,7 @@ describe('courseLoader', () => {
       customerAgreement: mockSubscriptionsData?.customerAgreement,
       subscriptionLicense: mockSubscriptionsData?.subscriptionLicense,
       subscriptionPlan: mockSubscriptionsData?.subscriptionPlan,
+      licensesByCatalog: {},
     });
 
     // When `ensureQueryData` is called with the enterprise learner offers query,

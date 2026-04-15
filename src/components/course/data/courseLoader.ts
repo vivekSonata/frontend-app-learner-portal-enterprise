@@ -5,7 +5,7 @@ import {
 import {
   determineAllocatedAssignmentsForCourse,
   determineLearnerHasContentAssignmentsOnly,
-  determineSubscriptionLicenseApplicable,
+  findLicenseForCourse,
   extractCourseRunKeyFromSearchParams,
   extractEnterpriseCustomer,
   findCouponCodeForCourse,
@@ -90,7 +90,9 @@ const makeCourseLoader: MakeRouteLoaderFunctionWithQueryClient = function makeCo
     const [
       { catalogList: catalogsWithCourse },
       { couponsOverview, couponCodeAssignments, couponCodeRedemptionCount },
-      { customerAgreement, subscriptionLicense, subscriptionPlan },
+      {
+        customerAgreement, subscriptionLicense, subscriptionPlan, licensesByCatalog,
+      },
       redeemableLearnerCreditPolicies,
     ] = prerequisiteQueries;
 
@@ -132,10 +134,12 @@ const makeCourseLoader: MakeRouteLoaderFunctionWithQueryClient = function makeCo
           const lateEnrollmentBufferDays = getLateEnrollmentBufferDays(
             redeemableLearnerCreditPolicies.redeemablePolicies,
           );
-          const isSubscriptionLicenseApplicable = determineSubscriptionLicenseApplicable(
-            subscriptionLicense,
+          const applicableLicense = findLicenseForCourse({
+            licensesByCatalog,
             catalogsWithCourse,
-          );
+            subscriptionLicense,
+          });
+          const isSubscriptionLicenseApplicable = !!applicableLicense;
           const applicableCouponCode = findCouponCodeForCourse(couponCodeAssignments, catalogsWithCourse);
           const hasSubsidyPrioritizedOverLearnerCredit = isSubscriptionLicenseApplicable
             || applicableCouponCode?.couponCodeRedemptionCount > 0;
@@ -199,6 +203,7 @@ const makeCourseLoader: MakeRouteLoaderFunctionWithQueryClient = function makeCo
           couponCodeAssignments,
           currentEnterpriseOffers,
           subscriptionLicense,
+          licensesByCatalog,
         });
         return safeEnsureQueryDataCourseRecommendations({
           queryClient,

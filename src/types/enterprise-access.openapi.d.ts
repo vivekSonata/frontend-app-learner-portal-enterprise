@@ -2537,6 +2537,7 @@ export interface components {
       customer_agreement?: components["schemas"]["CustomerAgreement"] | null;
       subscription_licenses?: components["schemas"]["SubscriptionLicense"][];
       subscription_licenses_by_status?: components["schemas"]["SubscriptionLicenseStatus"];
+      licenses_by_catalog?: Record<string, components["schemas"]["SubscriptionLicense"][]>;
       subscription_license?: components["schemas"]["SubscriptionLicense"] | null;
       subscription_plan?: components["schemas"]["SubscriptionPlan"] | null;
       /** @default false */

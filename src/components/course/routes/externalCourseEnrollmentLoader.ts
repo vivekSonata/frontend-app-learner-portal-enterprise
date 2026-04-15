@@ -3,7 +3,7 @@ import {
 } from 'react-router-dom';
 
 import {
-  determineSubscriptionLicenseApplicable,
+  findLicenseForCourse,
   extractEnterpriseCustomer,
   findCouponCodeForCourse,
   getCourseRunsForRedemption,
@@ -87,16 +87,18 @@ const makeExternalCourseEnrollmentLoader: MakeRouteLoaderFunctionWithQueryClient
         const [
           { catalogList: catalogsWithCourse },
           { couponCodeAssignments },
-          { subscriptionLicense },
+          { subscriptionLicense, licensesByCatalog },
           redeemableLearnerCreditPolicies,
         ] = prerequisiteQueries;
         const lateEnrollmentBufferDays = getLateEnrollmentBufferDays(
           redeemableLearnerCreditPolicies.redeemablePolicies,
         );
-        const isSubscriptionLicenseApplicable = determineSubscriptionLicenseApplicable(
-          subscriptionLicense,
+        const applicableLicense = findLicenseForCourse({
+          licensesByCatalog,
           catalogsWithCourse,
-        );
+          subscriptionLicense,
+        });
+        const isSubscriptionLicenseApplicable = !!applicableLicense;
         const applicableCouponCode = findCouponCodeForCourse(couponCodeAssignments, catalogsWithCourse);
         const hasSubsidyPrioritizedOverLearnerCredit = isSubscriptionLicenseApplicable
           || applicableCouponCode?.couponCodeRedemptionCount > 0;

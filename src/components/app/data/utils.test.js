@@ -7,6 +7,7 @@ import {
   determineAssignmentState,
   determineLearnerHasContentAssignmentsOnly,
   filterPoliciesByExpirationAndActive,
+  findLicenseForCourse,
   getAvailableCourseRuns,
   getSubsidyToApplyForCourse,
   transformGroupMembership,
@@ -1381,5 +1382,145 @@ describe('resolveBFFQuery', () => {
     const pathname = `/${mockEnterpriseCustomer.slug}/unsupported-bff-route`;
     const result = resolveBFFQuery(pathname);
     expect(result).toEqual(null);
+  });
+});
+
+jest.mock('../../../config', () => ({
+  features: {},
+}));
+
+describe('findLicenseForCourse', () => {
+  const { features } = require('../../../config'); // eslint-disable-line global-require
+
+  const mockActivatedLicenseA = {
+    uuid: 'license-a',
+    status: LICENSE_STATUS.ACTIVATED,
+    subscriptionPlan: {
+      uuid: 'plan-a',
+      enterpriseCatalogUuid: 'catalog-aaa',
+      isCurrent: true,
+      expirationDate: '2027-01-01T00:00:00Z',
+    },
+  };
+  const mockActivatedLicenseB = {
+    uuid: 'license-b',
+    status: LICENSE_STATUS.ACTIVATED,
+    subscriptionPlan: {
+      uuid: 'plan-b',
+      enterpriseCatalogUuid: 'catalog-bbb',
+      isCurrent: true,
+      expirationDate: '2026-06-01T00:00:00Z',
+    },
+  };
+  const mockActivatedLicenseC = {
+    uuid: 'license-c',
+    status: LICENSE_STATUS.ACTIVATED,
+    subscriptionPlan: {
+      uuid: 'plan-c',
+      enterpriseCatalogUuid: 'catalog-aaa',
+      isCurrent: true,
+      expirationDate: '2028-01-01T00:00:00Z',
+    },
+  };
+  const mockRevokedLicense = {
+    uuid: 'license-revoked',
+    status: LICENSE_STATUS.REVOKED,
+    subscriptionPlan: {
+      uuid: 'plan-revoked',
+      enterpriseCatalogUuid: 'catalog-aaa',
+      isCurrent: true,
+      expirationDate: '2027-06-01T00:00:00Z',
+    },
+  };
+
+  beforeEach(() => {
+    features.MULTI_LICENSE_SUPPORT = false;
+  });
+
+  it('returns legacy license when feature flag is OFF and license matches catalog', () => {
+    const result = findLicenseForCourse({
+      licensesByCatalog: { 'catalog-aaa': [mockActivatedLicenseA] },
+      catalogsWithCourse: ['catalog-aaa'],
+      subscriptionLicense: mockActivatedLicenseA,
+    });
+    expect(result).toEqual(mockActivatedLicenseA);
+  });
+
+  it('returns null when feature flag is OFF and license does not match catalog', () => {
+    const result = findLicenseForCourse({
+      licensesByCatalog: { 'catalog-aaa': [mockActivatedLicenseA] },
+      catalogsWithCourse: ['catalog-bbb'],
+      subscriptionLicense: mockActivatedLicenseA,
+    });
+    expect(result).toBeNull();
+  });
+
+  it('returns correct license for course catalog when feature flag is ON', () => {
+    features.MULTI_LICENSE_SUPPORT = true;
+    const result = findLicenseForCourse({
+      licensesByCatalog: {
+        'catalog-aaa': [mockActivatedLicenseA],
+        'catalog-bbb': [mockActivatedLicenseB],
+      },
+      catalogsWithCourse: ['catalog-bbb'],
+      subscriptionLicense: mockActivatedLicenseA,
+    });
+    expect(result).toEqual(mockActivatedLicenseB);
+  });
+
+  it('returns null when feature flag is ON and no license matches course catalog', () => {
+    features.MULTI_LICENSE_SUPPORT = true;
+    const result = findLicenseForCourse({
+      licensesByCatalog: {
+        'catalog-aaa': [mockActivatedLicenseA],
+      },
+      catalogsWithCourse: ['catalog-xyz'],
+      subscriptionLicense: mockActivatedLicenseA,
+    });
+    expect(result).toBeNull();
+  });
+
+  it('prefers license with latest expiration when multiple match the same catalog', () => {
+    features.MULTI_LICENSE_SUPPORT = true;
+    const result = findLicenseForCourse({
+      licensesByCatalog: {
+        'catalog-aaa': [mockActivatedLicenseA, mockActivatedLicenseC],
+      },
+      catalogsWithCourse: ['catalog-aaa'],
+      subscriptionLicense: mockActivatedLicenseA,
+    });
+    expect(result).toEqual(mockActivatedLicenseC);
+  });
+
+  it('skips revoked licenses in licensesByCatalog', () => {
+    features.MULTI_LICENSE_SUPPORT = true;
+    const result = findLicenseForCourse({
+      licensesByCatalog: {
+        'catalog-aaa': [mockRevokedLicense],
+      },
+      catalogsWithCourse: ['catalog-aaa'],
+      subscriptionLicense: null,
+    });
+    expect(result).toBeNull();
+  });
+
+  it('returns null when catalogsWithCourse is empty', () => {
+    features.MULTI_LICENSE_SUPPORT = true;
+    const result = findLicenseForCourse({
+      licensesByCatalog: { 'catalog-aaa': [mockActivatedLicenseA] },
+      catalogsWithCourse: [],
+      subscriptionLicense: mockActivatedLicenseA,
+    });
+    expect(result).toBeNull();
+  });
+
+  it('returns null when licensesByCatalog is empty', () => {
+    features.MULTI_LICENSE_SUPPORT = true;
+    const result = findLicenseForCourse({
+      licensesByCatalog: {},
+      catalogsWithCourse: ['catalog-aaa'],
+      subscriptionLicense: null,
+    });
+    expect(result).toBeNull();
   });
 });

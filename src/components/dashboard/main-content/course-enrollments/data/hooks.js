@@ -23,6 +23,7 @@ import {
   ASSIGNMENT_TYPES,
   COUPON_CODE_SUBSIDY_TYPE,
   findCouponCodeForCourse,
+  findLicenseForCourse,
   getSubsidyToApplyForCourse,
   isEnrollmentUpgradeable,
   LEARNER_CREDIT_SUBSIDY_TYPE,
@@ -92,23 +93,19 @@ export const useCourseUpgradeData = ({
   } = useCanUpgradeWithLearnerCredit(courseRunKey);
 
   // Metadata required to allow upgrade via applicable subscription license
-  const { data: subscriptionLicense } = useSubscriptions({
+  const { data: subscriptionData } = useSubscriptions({
     select: (data) => {
-      let license;
-      if (data?.transformed) {
-        // If the data has been transformed, use the transformed data.
-        license = data.transformed.subscriptionLicense;
-      } else {
-        license = data?.subscriptionLicense;
-      }
+      const transformed = data?.transformed ?? data;
+      const license = transformed?.subscriptionLicense;
       const isLicenseActivated = !!(license?.status === LICENSE_STATUS.ACTIVATED);
-      const isSubscriptionPlanCurrent = !!license?.subscriptionPlan.isCurrent;
-      if (!isLicenseActivated || !isSubscriptionPlanCurrent) {
-        return null;
-      }
-      return license;
+      const isSubscriptionPlanCurrent = !!license?.subscriptionPlan?.isCurrent;
+      return {
+        subscriptionLicense: (isLicenseActivated && isSubscriptionPlanCurrent) ? license : null,
+        licensesByCatalog: transformed?.licensesByCatalog ?? {},
+      };
     },
   });
+  const { subscriptionLicense, licensesByCatalog } = subscriptionData ?? {};
 
   // Metadata required to allow upgrade via applicable coupon code
   const { data: applicableCouponCode } = useCouponCodes({
@@ -170,10 +167,15 @@ export const useCourseUpgradeData = ({
 
     // Construct and return subscription based upgrade url
     if (applicableSubsidy.subsidyType === LICENSE_SUBSIDY_TYPE) {
+      const courseApplicableLicense = findLicenseForCourse({
+        licensesByCatalog,
+        catalogsWithCourse: customerContainsContent?.catalogList,
+        subscriptionLicense,
+      }) ?? subscriptionLicense;
       applicableSubsidy.redemptionUrl = createEnrollWithLicenseUrl({
         courseRunKey,
         enterpriseId: enterpriseCustomer.uuid,
-        licenseUUID: subscriptionLicense.uuid,
+        licenseUUID: courseApplicableLicense.uuid,
         location,
       });
       return {
@@ -233,12 +235,14 @@ export const useCourseUpgradeData = ({
     return defaultReturn;
   }, [
     subscriptionLicense,
+    licensesByCatalog,
     canUpgradeToVerifiedEnrollment,
     applicableCouponCode,
     courseRunDetails?.firstEnrollablePaidSeatPrice,
     courseRunDetails?.sku,
     courseRunKey,
     customerContainsContent?.containsContentItems,
+    customerContainsContent?.catalogList,
     enterpriseCustomer.uuid,
     learnerCreditMetadata,
     location,

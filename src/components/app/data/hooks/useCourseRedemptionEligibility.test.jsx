@@ -122,7 +122,7 @@ describe('useCourseRedemptionEligibility', () => {
         unexpiredPolicies: [],
       },
     });
-    useSubscriptions.mockReturnValue({ data: { subscriptionLicense: null } });
+    useSubscriptions.mockReturnValue({ data: { subscriptionLicense: null, licensesByCatalog: {} } });
     useCouponCodes.mockReturnValue({ data: { couponCodeAssignments: [] } });
     useCourseRunKeyQueryParam.mockReturnValue(null);
   });

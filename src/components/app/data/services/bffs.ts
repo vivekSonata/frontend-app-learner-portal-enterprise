@@ -33,6 +33,7 @@ export const baseLearnerBFFResponse: BFFResponse = {
         assigned: [],
         revoked: [],
       },
+      licensesByCatalog: {},
     },
   },
   errors: [],

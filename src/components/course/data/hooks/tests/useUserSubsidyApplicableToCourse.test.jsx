@@ -118,6 +118,7 @@ describe('useUserSubsidyApplicableToCourse', () => {
         customerAgreement: undefined,
         subscriptionLicense: undefined,
         subscriptionPlan: undefined,
+        licensesByCatalog: {},
       },
     });
     useEnterpriseCustomerContainsContentSuspense.mockReturnValue({
@@ -271,6 +272,7 @@ describe('useUserSubsidyApplicableToCourse', () => {
             isCurrent: true,
           },
         },
+        licensesByCatalog: {},
       },
     });
 
@@ -338,6 +340,7 @@ describe('useUserSubsidyApplicableToCourse', () => {
             isCurrent: false,
           },
         },
+        licensesByCatalog: {},
       },
     });
 

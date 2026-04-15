@@ -13,7 +13,7 @@ import useCouponCodes from './useCouponCodes';
  * excluded. Ensures no duplicate catalog UUIDs are returned.
  */
 export default function useSearchCatalogs() {
-  const { data: { subscriptionLicense } } = useSubscriptions();
+  const { data: { subscriptionLicense, licensesByCatalog } } = useSubscriptions();
   const { data: { redeemablePolicies } } = useRedeemablePolicies();
   const { data: { couponCodeAssignments } } = useCouponCodes();
   const { data: { currentEnterpriseOffers } } = useEnterpriseOffers();
@@ -25,11 +25,13 @@ export default function useSearchCatalogs() {
     couponCodeAssignments,
     currentEnterpriseOffers,
     subscriptionLicense,
+    licensesByCatalog,
   }), [
     redeemablePolicies,
     catalogsForSubsidyRequests,
     couponCodeAssignments,
     currentEnterpriseOffers,
     subscriptionLicense,
+    licensesByCatalog,
   ]);
 }

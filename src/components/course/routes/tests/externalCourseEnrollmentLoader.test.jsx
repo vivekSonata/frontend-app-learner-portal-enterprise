@@ -182,6 +182,7 @@ describe('externalCourseEnrollmentLoader', () => {
       customerAgreement: mockSubscriptionsData.customerAgreement,
       subscriptionLicense: mockSubscriptionsData.subscriptionLicense,
       subscriptionPlan: mockSubscriptionsData.subscriptionPlan,
+      licensesByCatalog: {},
     });
 
     // When `ensureQueryData` is called with the canRedeem query,

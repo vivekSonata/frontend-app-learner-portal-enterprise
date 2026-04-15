@@ -55,7 +55,12 @@ describe('useSearchCatalogs', () => {
     useRedeemablePolicies.mockReturnValue({ data: { redeemablePolicies: [] } });
     useCatalogsForSubsidyRequests.mockReturnValue([]);
     useEnterpriseOffers.mockReturnValue({ data: { currentEnterpriseOffers: [] } });
-    useSubscriptions.mockReturnValue({ data: { subscriptionLicense: { subscriptionPlan: { isCustom: false } } } });
+    useSubscriptions.mockReturnValue({
+      data: {
+        subscriptionLicense: { subscriptionPlan: { isCustom: false } },
+        licensesByCatalog: {},
+      },
+    });
     useCouponCodes.mockReturnValue({ data: { couponCodeAssignments: [] } });
   });
 
@@ -85,7 +90,7 @@ describe('useSearchCatalogs', () => {
       },
     };
     useSubscriptions.mockReturnValue({
-      data: { subscriptionLicense: mockSubscriptionLicense },
+      data: { subscriptionLicense: mockSubscriptionLicense, licensesByCatalog: {} },
     });
     const { result } = renderHook(() => useSearchCatalogs(), { wrapper: Wrapper });
     if (isSubscriptionPlanCurrent && status === LICENSE_STATUS.ACTIVATED) {

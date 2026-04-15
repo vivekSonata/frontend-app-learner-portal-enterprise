@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useParams } from 'react-router';
 import {
-  determineSubscriptionLicenseApplicable,
+  findLicenseForCourse,
   findCouponCodeForCourse,
   getSubsidyToApplyForCourse,
   useCouponCodes,
@@ -51,6 +51,7 @@ const useUserSubsidyApplicableToCourse = () => {
     data: {
       customerAgreement,
       subscriptionLicense,
+      licensesByCatalog,
     },
   } = useSubscriptions();
   const {
@@ -88,13 +89,14 @@ const useUserSubsidyApplicableToCourse = () => {
  */
   const { data: canRequestData, isPending: isCanRequestPending } = useCourseCanRequestEligibility();
 
-  const isSubscriptionLicenseApplicable = determineSubscriptionLicenseApplicable(
-    subscriptionLicense,
+  const applicableLicense = findLicenseForCourse({
+    licensesByCatalog,
     catalogsWithCourse,
-  );
+    subscriptionLicense,
+  });
 
   const userSubsidyApplicableToCourse = getSubsidyToApplyForCourse({
-    applicableSubscriptionLicense: isSubscriptionLicenseApplicable ? subscriptionLicense : null,
+    applicableSubscriptionLicense: applicableLicense,
     applicableSubsidyAccessPolicy: {
       isPolicyRedemptionEnabled,
       redeemableSubsidyAccessPolicy,

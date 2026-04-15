@@ -231,6 +231,20 @@ export function transformSubscriptionsData({ customerAgreement, subscriptionLice
     subscriptionsData.subscriptionLicensesByStatus = updatedLicensesByStatus;
   });
 
+  // Build licensesByCatalog mapping from activated, current licenses.
+  // Enables course-context license selection for multi-license learners.
+  subscriptionsData.licensesByCatalog = {};
+  subscriptionsData.subscriptionLicenses.forEach((license) => {
+    if (license.status !== LICENSE_STATUS.ACTIVATED || !license.subscriptionPlan.isCurrent) {
+      return;
+    }
+    const catalogUuid = license.subscriptionPlan.enterpriseCatalogUuid;
+    if (!subscriptionsData.licensesByCatalog[catalogUuid]) {
+      subscriptionsData.licensesByCatalog[catalogUuid] = [];
+    }
+    subscriptionsData.licensesByCatalog[catalogUuid].push(license);
+  });
+
   // Extracts a single subscription license for the user, from the ordered licenses by status.
   const applicableSubscriptionLicense = Object.values(subscriptionsData.subscriptionLicensesByStatus).flat()[0];
   if (applicableSubscriptionLicense) {
