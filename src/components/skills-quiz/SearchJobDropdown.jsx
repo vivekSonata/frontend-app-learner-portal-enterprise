@@ -1,6 +1,6 @@
 import { useContext } from 'react';
-import { SearchContext } from '@edx/frontend-enterprise-catalog-search';
-import FacetListRefinement from '@edx/frontend-enterprise-catalog-search/FacetListRefinement';
+import { SearchContext } from '@2uinc/frontend-enterprise-catalog-search';
+import FacetListRefinement from '@2uinc/frontend-enterprise-catalog-search/FacetListRefinement';
 import PropTypes from 'prop-types';
 import { DESIRED_JOB_FACET } from './constants';
 

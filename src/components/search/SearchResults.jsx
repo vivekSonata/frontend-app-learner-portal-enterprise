@@ -4,7 +4,7 @@ import classNames from 'classnames';
 import { connectStateResults } from 'react-instantsearch-dom';
 import {
   useNbHitsFromSearchResults, SearchContext, SearchPagination, setRefinementAction,
-} from '@edx/frontend-enterprise-catalog-search';
+} from '@2uinc/frontend-enterprise-catalog-search';
 import {
   CardGrid, Container, Skeleton,
 } from '@openedx/paragon';

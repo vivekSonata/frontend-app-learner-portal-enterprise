@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom/extend-expect';
 import { screen } from '@testing-library/react';
 import { AppContext } from '@edx/frontend-platform/react';
-import { SearchData } from '@edx/frontend-enterprise-catalog-search';
+import { SearchData } from '@2uinc/frontend-enterprise-catalog-search';
 import { mergeConfig } from '@edx/frontend-platform';
 import { IntlProvider } from '@edx/frontend-platform/i18n';
 import { SKILLS_QUIZ_SEARCH_PAGE_MESSAGE } from '../constants';
@@ -12,8 +12,8 @@ import SkillsQuizPage from '../SkillsQuizPage';
 import { useAlgoliaSearch, useEnterpriseCustomer } from '../../app/data';
 import { authenticatedUserFactory, enterpriseCustomerFactory } from '../../app/data/services/data/__factories__';
 
-jest.mock('@edx/frontend-enterprise-utils', () => ({
-  ...jest.requireActual('@edx/frontend-enterprise-utils'),
+jest.mock('@2uinc/frontend-enterprise-utils', () => ({
+  ...jest.requireActual('@2uinc/frontend-enterprise-utils'),
   sendEnterpriseTrackEvent: jest.fn(),
 }));
 

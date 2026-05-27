@@ -45,6 +45,26 @@ export function resolveBFFQuery<TQuery = BFFQuery | null>(pathname: string) {
       query: queryEnterpriseLearnerDashboardBFF,
     },
     {
+      pattern: '/:enterpriseSlug/course/:courseKey',
+      query: queryEnterpriseLearnerDashboardBFF,
+    },
+    {
+      pattern: '/:enterpriseSlug/course/:courseKey/enroll/:courseRunKey',
+      query: queryEnterpriseLearnerDashboardBFF,
+    },
+    {
+      pattern: '/:enterpriseSlug/:courseType/course/:courseKey',
+      query: queryEnterpriseLearnerDashboardBFF,
+    },
+    {
+      pattern: '/:enterpriseSlug/:courseType/course/:courseKey/enroll/:courseRunKey',
+      query: queryEnterpriseLearnerDashboardBFF,
+    },
+    {
+      pattern: '/:enterpriseSlug/:courseType/course/:courseKey/enroll/:courseRunKey/complete',
+      query: queryEnterpriseLearnerDashboardBFF,
+    },
+    {
       pattern: '/:enterpriseSlug/search/:pathwayUUID?',
       query: queryEnterpriseLearnerSearchBFF,
     },
@@ -238,7 +258,27 @@ export async function safeEnsureQueryDataCouponCodes({
 export async function safeEnsureQueryDataSubscriptions({
   queryClient,
   enterpriseCustomer,
+  enterpriseSlug,
 }) {
+  const resolvedEnterpriseSlug = enterpriseSlug || enterpriseCustomer.slug;
+
+  if (resolvedEnterpriseSlug) {
+    const bffResponse = await safeEnsureQueryData<DashboardBFFResponse | null>({
+      queryClient,
+      query: {
+        ...queryEnterpriseLearnerDashboardBFF({ enterpriseSlug: resolvedEnterpriseSlug }),
+        retry: false,
+      },
+      shouldLogError: false,
+      fallbackData: null,
+    });
+    const bffSubscriptions = bffResponse?.enterpriseCustomerUserSubsidies?.subscriptions;
+
+    if (bffSubscriptions) {
+      return bffSubscriptions;
+    }
+  }
+
   return safeEnsureQueryData({
     queryClient,
     query: querySubscriptions(enterpriseCustomer.uuid),

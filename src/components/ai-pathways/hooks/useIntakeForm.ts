@@ -33,10 +33,15 @@ export const useIntakeForm = ({ onSubmit }: UseIntakeFormArgs) => {
 
   const progress = useMemo(() => (pageIndex / (INTAKE_PAGES.length - 1)) * 100, [pageIndex]);
 
+  /** Updates a single field in `formData` without affecting other fields. */
   const handleChange = useCallback((field: keyof CreateLearnerProfileArgs, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   }, []);
 
+  /**
+   * Advances the form to the next page, or submits when the final preferences page
+   * is reached (transitions to the processing/loading step before calling `onSubmit`).
+   */
   const handleNext = useCallback(async () => {
     if (pageIndex === INTAKE_STEPS.PREFERENCES) {
       setPageIndex(INTAKE_STEPS.PROCESSING);
@@ -46,6 +51,7 @@ export const useIntakeForm = ({ onSubmit }: UseIntakeFormArgs) => {
     }
   }, [pageIndex, formData, onSubmit]);
 
+  /** Returns to the previous page if the form is not already on the first step. */
   const handleBack = useCallback(() => {
     if (pageIndex > 0) {
       setPageIndex(pageIndex - 1);

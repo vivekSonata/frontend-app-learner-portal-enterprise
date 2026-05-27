@@ -23,14 +23,23 @@ export interface PreprocessedInput {
  */
 export const intakePreprocessor = {
   /**
-   * Preprocesses raw intake form arguments into a structured format for the AI.
+   * Transforms raw intake form responses into a compact, noise-free `PreprocessedInput`
+   * ready for the Xpert intent-extraction prompt.
    *
-   * @param args The raw intake form responses captured from the UI.
-   * @returns A structured PreprocessedInput object.
+   * Stripping filler phrases and normalising time-availability tokens reduces prompt
+   * token count and removes ambiguity that could degrade AI extraction quality.
+   *
+   * @param args The raw field values submitted by the learner through the intake form UI.
+   * @returns A `PreprocessedInput` with cleaned free-text, extracted goals, known context,
+   *   and normalised preferences — all ready to be serialised into the system prompt.
    */
   preprocessInput(args: CreateLearnerProfileArgs): PreprocessedInput {
     /**
-     * Removes common conversational fillers and trims whitespace to isolate the core intent.
+     * Strips common conversational filler phrases and trims surrounding whitespace
+     * to isolate the learner's core intent statement.
+     *
+     * @param text Raw free-text field value from the intake form.
+     * @returns The cleaned text with leading filler phrases removed.
      */
     const cleanText = (text: string) => (
       text || ''
@@ -39,8 +48,12 @@ export const intakePreprocessor = {
       .replace(/^I want to learn |Please show me |Could you help me with /gi, '');
 
     /**
-     * Maps human-readable time availability options to normalized internal keys.
-     * These keys ('short', 'medium', 'long') match the expected schema for the AI.
+     * Converts human-readable time-availability labels (e.g. "Up to 3 hrs/week")
+     * to the normalised token keys (`'short' | 'medium' | 'long'`) expected by the
+     * Xpert prompt schema.
+     *
+     * @param time The raw time-availability string from the intake form.
+     * @returns A normalised token, or the lowercased raw value if no mapping matches.
      */
     const mapTime = (time: string) => {
       const t = (time || '').toLowerCase();

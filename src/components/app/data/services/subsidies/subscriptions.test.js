@@ -48,8 +48,8 @@ jest.mock('@edx/frontend-platform/auth', () => ({
   getAuthenticatedHttpClient: jest.fn(),
 }));
 
-jest.mock('@edx/frontend-enterprise-utils', () => ({
-  ...jest.requireActual('@edx/frontend-enterprise-utils'),
+jest.mock('@2uinc/frontend-enterprise-utils', () => ({
+  ...jest.requireActual('@2uinc/frontend-enterprise-utils'),
   sendEnterpriseTrackEvent: jest.fn(),
 }));
 
@@ -175,6 +175,7 @@ describe('fetchSubscriptions', () => {
     }
     const expectedResult = {
       customerAgreement: mockResponse.customerAgreement,
+      licensesByCatalog: {},
       subscriptionLicensesByStatus: expectedLicensesByStatus,
       subscriptionPlan: isValidLicenseStatus ? mockSubscriptionLicense.subscriptionPlan : null,
       subscriptionLicense: isValidLicenseStatus ? mockSubscriptionLicense : null,
@@ -239,6 +240,7 @@ describe('fetchSubscriptions', () => {
 
     const expectedResult = {
       customerAgreement: mockResponse.customerAgreement,
+      licensesByCatalog: {},
       subscriptionLicensesByStatus: expectedLicensesByStatus,
       subscriptionPlan: mockSubscriptionLicenseCurrent.subscriptionPlan,
       subscriptionLicense: mockSubscriptionLicenseCurrent,
@@ -246,6 +248,50 @@ describe('fetchSubscriptions', () => {
       showExpirationNotifications: true,
     };
     expect(response).toEqual(expectedResult);
+  });
+
+  it('keeps direct API path in single-license shape even when licenses include catalog UUIDs', async () => {
+    const mockLicenseTech = {
+      uuid: 'license-tech-uuid',
+      status: LICENSE_STATUS.ACTIVATED,
+      subscriptionPlan: {
+        uuid: 'plan-tech-uuid',
+        isActive: true,
+        isCurrent: true,
+        enterpriseCatalogUuid: 'catalog-tech-uuid',
+        startDate: dayjs().subtract(30, 'days').toISOString(),
+        expirationDate: dayjs().add(180, 'days').toISOString(),
+        daysUntilExpiration: 180,
+      },
+    };
+    const mockLicenseLeadership = {
+      uuid: 'license-leadership-uuid',
+      status: LICENSE_STATUS.ACTIVATED,
+      subscriptionPlan: {
+        uuid: 'plan-leadership-uuid',
+        isActive: true,
+        isCurrent: true,
+        enterpriseCatalogUuid: 'catalog-leadership-uuid',
+        startDate: dayjs().subtract(60, 'days').toISOString(),
+        expirationDate: dayjs().add(90, 'days').toISOString(),
+        daysUntilExpiration: 90,
+      },
+    };
+    const mockMultiResponse = {
+      customerAgreement: { uuid: 'ca-uuid', disableExpirationNotifications: false },
+      results: [mockLicenseTech, mockLicenseLeadership],
+    };
+    const queryParams = new URLSearchParams({
+      enterprise_customer_uuid: mockEnterpriseId,
+      include_revoked: true,
+      current_plans_only: false,
+      page_size: 100,
+    });
+    const SUBSCRIPTIONS_URL = `${APP_CONFIG.LICENSE_MANAGER_URL}/api/v1/learner-licenses/?${queryParams.toString()}`;
+    axiosMock.onGet(SUBSCRIPTIONS_URL).reply(200, mockMultiResponse);
+    const response = await fetchSubscriptions(mockEnterpriseId);
+
+    expect(response.licensesByCatalog).toEqual({});
   });
 });
 

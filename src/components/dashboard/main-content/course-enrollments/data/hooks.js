@@ -8,7 +8,7 @@ import { logError } from '@edx/frontend-platform/logging';
 import {
   sendEnterpriseTrackEvent,
   sendEnterpriseTrackEventWithDelay,
-} from '@edx/frontend-enterprise-utils';
+} from '@2uinc/frontend-enterprise-utils';
 
 import { useLocation } from 'react-router-dom';
 import * as service from './service';

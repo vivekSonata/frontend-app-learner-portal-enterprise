@@ -25,7 +25,7 @@ describe('pathwayAssemblerXpertService', () => {
     industries: [],
     jobSources: [],
     condensedQuery: 'react',
-    learnerLevel: 'beginner',
+    learnerLevel: 'introductory',
     timeCommitment: 'medium',
     excludeTags: [],
   };
@@ -73,6 +73,40 @@ describe('pathwayAssemblerXpertService', () => {
 
       expect(result.debug.success).toBe(false);
       expect(result.pathway).toEqual(mockPathway);
+    });
+
+    it('supports prompt interception', async () => {
+      const mockInterceptor = jest.fn().mockResolvedValue({
+        decision: 'accepted',
+        bundle: {
+          combined: 'Edited system prompt',
+          tags: ['edited-tag'],
+          parts: [],
+        },
+      });
+
+      (xpertService.sendMessage as jest.Mock).mockResolvedValue({ content: '{"reasonings": []}' });
+      (xpertContractService.parseReasoning as jest.Mock).mockReturnValue({ reasonings: [] });
+
+      await pathwayAssemblerXpertService.enrichWithReasoning(mockPathway, mockIntent, mockInterceptor);
+
+      expect(mockInterceptor).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'pathwayEnrichment' }),
+        expect.objectContaining({ label: 'Pathway Enrichment' }),
+      );
+
+      expect(xpertService.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+        systemMessage: 'Edited system prompt',
+        tags: ['edited-tag'],
+      }));
+    });
+
+    it('handles interception cancellation', async () => {
+      const mockInterceptor = jest.fn().mockResolvedValue({ decision: 'cancelled' });
+
+      await expect(
+        pathwayAssemblerXpertService.enrichWithReasoning(mockPathway, mockIntent, mockInterceptor),
+      ).rejects.toThrow('PromptInterceptor: pathway enrichment cancelled by user');
     });
   });
 });

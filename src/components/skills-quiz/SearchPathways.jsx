@@ -3,7 +3,7 @@ import {
 } from 'react';
 import PropTypes from 'prop-types';
 import { FormattedMessage } from '@edx/frontend-platform/i18n';
-import { SearchContext } from '@edx/frontend-enterprise-catalog-search';
+import { SearchContext } from '@2uinc/frontend-enterprise-catalog-search';
 import { camelCaseObject } from '@edx/frontend-platform/utils';
 import { CardGrid } from '@openedx/paragon';
 

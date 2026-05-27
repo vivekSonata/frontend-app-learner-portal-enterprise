@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import {
   Button,
-  Card,
   Stack,
   Badge,
+  Form,
+  ModalDialog,
 } from '@openedx/paragon';
 import { XpertPromptBundle, PromptPart } from '../types';
 import { InterceptContext } from '../hooks/usePromptInterceptor';
+import { sanitizeTags } from '../utils/tagUtils';
 
 // ---------------------------------------------------------------------------
 // Props
@@ -39,33 +41,29 @@ interface PromptPartEditorProps {
 }
 
 const PromptPartEditor = ({ part, onChange }: PromptPartEditorProps) => (
-  <div style={{ marginBottom: '1rem' }}>
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem',
-    }}
-    >
-      <strong style={{ fontFamily: 'monospace', fontSize: '0.875rem' }}>{part.label}</strong>
-      {part.required && <Badge variant="primary">required</Badge>}
-      {!part.editable && <Badge variant="secondary">read-only</Badge>}
+  <Form.Group className="mb-3">
+    <div className="d-flex align-items-center mb-1">
+      <Form.Label className="mb-0 mr-2">
+        <code className="small font-weight-bold">{part.label}</code>
+      </Form.Label>
+      <Stack direction="horizontal" gap={1}>
+        {part.required && <Badge variant="primary">required</Badge>}
+        {!part.editable && <Badge variant="secondary">read-only</Badge>}
+      </Stack>
     </div>
-    <textarea
+    <Form.Control
+      as="textarea"
       value={part.content}
       readOnly={!part.editable}
-      onChange={(e) => onChange(part.label, e.target.value)}
+      onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => onChange(part.label, e.target.value)}
       rows={Math.max(6, part.content.split('\n').length + 2)}
+      className="text-monospace small"
       style={{
-        width: '100%',
-        fontFamily: 'monospace',
-        fontSize: '0.8125rem',
-        padding: '0.5rem',
-        boxSizing: 'border-box',
         resize: 'vertical',
         backgroundColor: part.editable ? '#ffffff' : '#f8f9fa',
-        border: '1px solid #ced4da',
-        borderRadius: '0.25rem',
       }}
     />
-  </div>
+  </Form.Group>
 );
 
 // ---------------------------------------------------------------------------
@@ -90,11 +88,14 @@ export const PromptEditorModal = ({
 }: PromptEditorModalProps) => {
   // Local copy of parts so edits don't mutate the original bundle.
   const [editedParts, setEditedParts] = useState<PromptPart[]>([]);
+  // Local copy of tags input string.
+  const [editedTags, setEditedTags] = useState<string>('');
 
   // Sync local state whenever a new bundle is passed in.
   useEffect(() => {
     if (bundle) {
       setEditedParts(bundle.parts.map(p => ({ ...p })));
+      setEditedTags(bundle.tags?.join(', ') || '');
     }
   }, [bundle]);
 
@@ -109,106 +110,102 @@ export const PromptEditorModal = ({
 
   const handleAccept = () => {
     const combined = editedParts.map(p => p.content).join('');
+    const rawTags = editedTags.split(',');
+    const sanitized = sanitizeTags(rawTags);
     const editedBundle: XpertPromptBundle = {
       ...bundle,
       parts: editedParts,
       combined,
+      tags: sanitized,
     };
     onAccept(editedBundle);
   };
 
   return (
-    /* Overlay */
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={`Prompt Editor — ${context.label}`}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        display: 'flex',
-        alignItems: 'flex-start',
-        justifyContent: 'center',
-        zIndex: 1050,
-        padding: '2rem 1rem',
-        overflowY: 'auto',
-      }}
+    <ModalDialog
+      isOpen
+      onClose={onCancel}
+      size="xl"
+      title={`Prompt Editor — ${context.label}`}
+      hasCloseButton
+      isOverflowVisible={false}
     >
-      {/* Dialog panel */}
-      <Card
-        style={{
-          width: '100%',
-          maxWidth: '860px',
-          margin: '0 auto',
-        }}
-      >
-        <Card.Header
-          title={`Prompt Editor — ${context.label}`}
-          subtitle={
-            context.meta?.stage
-              ? `Stage: ${String(context.meta.stage)}`
-              : undefined
-          }
-        />
-
-        <Card.Section>
-          {/* Context summary */}
-          <div style={{ marginBottom: '1.25rem' }}>
-            <strong>Outbound messages ({context.messages.length})</strong>
-            <div
-              style={{
-                fontFamily: 'monospace',
-                fontSize: '0.8125rem',
-                backgroundColor: '#f8f9fa',
-                border: '1px solid #dee2e6',
-                borderRadius: '0.25rem',
-                padding: '0.5rem',
-                marginTop: '0.25rem',
-                maxHeight: '6rem',
-                overflowY: 'auto',
-                whiteSpace: 'pre-wrap',
-              }}
-            >
-              {context.messages.map((m, i) => (
-                // eslint-disable-next-line react/no-array-index-key
-                <div key={i}>
-                  <Badge variant="secondary" style={{ marginRight: '0.25rem' }}>{m.role}</Badge>
-                  {m.content}
-                </div>
-              ))}
+      <ModalDialog.Header>
+        <ModalDialog.Title>
+          <span>Prompt Editor — {context.label}</span>
+          {context.meta?.stage && (
+            <div className="small text-muted font-weight-normal">
+              Stage: {String(context.meta.stage)}
             </div>
-          </div>
-
-          {/* Editable prompt parts */}
-          <div>
-            <strong style={{ display: 'block', marginBottom: '0.75rem' }}>
-              Prompt parts ({editedParts.length})
-            </strong>
-            {editedParts.map(part => (
-              <PromptPartEditor
-                key={part.label}
-                part={part}
-                onChange={handlePartChange}
-              />
+          )}
+        </ModalDialog.Title>
+      </ModalDialog.Header>
+      <ModalDialog.Body>
+        {/* Context summary */}
+        <div className="mb-4">
+          <h4 className="h6 font-weight-bold">Outbound messages ({context.messages.length})</h4>
+          <div
+            className="bg-light border rounded p-2 overflow-auto"
+            style={{
+              fontFamily: 'monospace',
+              fontSize: '0.8125rem',
+              maxHeight: '10rem',
+              whiteSpace: 'pre-wrap',
+            }}
+          >
+            {context.messages.map((m, i) => (
+              // eslint-disable-next-line react/no-array-index-key
+              <div key={i}>
+                <Badge variant="secondary" className="mr-1">{m.role}</Badge>
+                {m.content}
+              </div>
             ))}
           </div>
-        </Card.Section>
+        </div>
 
-        <Card.Footer>
-          <Stack direction="horizontal" gap={2}>
-            <Button variant="primary" onClick={handleAccept}>
-              Accept
-            </Button>
-            <Button variant="outline-secondary" onClick={onReject}>
-              Reject (use original)
-            </Button>
-            <Button variant="outline-danger" onClick={onCancel}>
-              Cancel
-            </Button>
-          </Stack>
-        </Card.Footer>
-      </Card>
-    </div>
+        {/* Editable prompt parts */}
+        <div className="mb-4">
+          <h4 className="h6 font-weight-bold mb-3">
+            Prompt parts ({editedParts.length})
+          </h4>
+          {editedParts.map(part => (
+            <PromptPartEditor
+              key={part.label}
+              part={part}
+              onChange={handlePartChange}
+            />
+          ))}
+        </div>
+
+        {/* Request-level configuration (Tags) */}
+        <div className="pt-3 border-top">
+          <Form.Group controlId="request-tags">
+            <Form.Label className="font-weight-bold small">Request Tags</Form.Label>
+            <Form.Control
+              type="text"
+              value={editedTags}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditedTags(e.target.value)}
+              placeholder="discovery, edx-available-course"
+              className="text-monospace small"
+            />
+            <Form.Text className="text-muted small">
+              Comma-separated tags used to scope RAG retrieval. Clearing this field will omit tags from the request.
+            </Form.Text>
+          </Form.Group>
+        </div>
+      </ModalDialog.Body>
+      <ModalDialog.Footer>
+        <Button variant="outline-danger" onClick={onCancel}>
+          Cancel Request
+        </Button>
+        <div className="flex-grow-1" />
+        <Button variant="outline-secondary" onClick={onReject}>
+          Reset to Original
+        </Button>
+        <Button variant="primary" onClick={handleAccept}>
+          Accept & Execute
+        </Button>
+      </ModalDialog.Footer>
+    </ModalDialog>
   );
 };

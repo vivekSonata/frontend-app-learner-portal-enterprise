@@ -1,7 +1,7 @@
 import PropTypes from 'prop-types';
 import classNames from 'classnames';
 import { Button, Col, Row } from '@openedx/paragon';
-import { sendEnterpriseTrackEventWithDelay } from '@edx/frontend-enterprise-utils';
+import { sendEnterpriseTrackEventWithDelay } from '@2uinc/frontend-enterprise-utils';
 import { ArrowBack } from '@openedx/paragon/icons';
 
 import { ErrorPage } from '../../error-page';

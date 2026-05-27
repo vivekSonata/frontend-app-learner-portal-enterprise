@@ -1,5 +1,9 @@
 import React from 'react';
-import { ModalDialog, Button, Badge } from '@openedx/paragon';
+import {
+  ModalDialog,
+  Button,
+  Badge,
+} from '@openedx/paragon';
 import type { PathwayCourse } from '../../types';
 
 interface PathwayDetailProps {
@@ -52,7 +56,7 @@ export const PathwayDetail = ({
       title={title}
       size="lg"
       hasCloseButton
-      isOverflowVisible
+      isOverflowVisible={false}
     >
       <ModalDialog.Header>
         <ModalDialog.Title>{title}</ModalDialog.Title>

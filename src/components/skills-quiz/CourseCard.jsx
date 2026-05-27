@@ -5,7 +5,7 @@ import {
 import { Link } from 'react-router-dom';
 import { AppContext } from '@edx/frontend-platform/react';
 import PropTypes from 'prop-types';
-import { sendEnterpriseTrackEvent } from '@edx/frontend-enterprise-utils';
+import { sendEnterpriseTrackEvent } from '@2uinc/frontend-enterprise-utils';
 import cardFallbackImg from '@edx/brand/paragon/images/card-imagecap-fallback.png';
 
 import getCommonSkills from './data/utils';

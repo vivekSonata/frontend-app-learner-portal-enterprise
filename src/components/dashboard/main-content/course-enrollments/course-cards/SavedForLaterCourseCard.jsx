@@ -1,6 +1,6 @@
 import { useContext, useState } from 'react';
 import PropTypes from 'prop-types';
-import { sendEnterpriseTrackEvent } from '@edx/frontend-enterprise-utils';
+import { sendEnterpriseTrackEvent } from '@2uinc/frontend-enterprise-utils';
 import { defineMessages, FormattedMessage } from '@edx/frontend-platform/i18n';
 
 import BaseCourseCard, { getScreenReaderText } from './BaseCourseCard';

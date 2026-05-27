@@ -1,4 +1,6 @@
-import { SearchIndex } from 'algoliasearch/lite';
+import { SearchClient, SearchIndex } from 'algoliasearch/lite';
+import { getConfig } from '@edx/frontend-platform/config';
+import algoliasearch from 'algoliasearch';
 import { CatalogFacetSnapshot, FacetRetrievalConfig } from '../types/catalogFacet';
 import { FacetBootstrapContext, FacetSnapshotTrace } from '../types';
 import {
@@ -8,9 +10,13 @@ import {
 } from '../constants';
 
 /**
- * Validation helper that safely reads missing facets as empty arrays.
- * This ensures the application doesn't crash if Algolia returns an unexpected shape
- * or if a facet has no values.
+ * Safely extracts the list of facet values for a given key from an Algolia facet response.
+ * Returns an empty array when the key is absent or the response is undefined, preventing
+ * downstream crashes if the Algolia index schema evolves or a facet has no values.
+ *
+ * @param facets The raw facets map returned by Algolia (`{ [attr]: { [value]: count } }`).
+ * @param key The facet attribute name to read (e.g. `'skill_names'`).
+ * @returns An array of facet value strings, or `[]` if the key is missing.
  */
 const safeReadFacet = (facets: Record<string, Record<string, number>> | undefined, key: string): string[] => {
   if (!facets || !facets[key]) {
@@ -33,19 +39,35 @@ const safeReadFacet = (facets: Record<string, Record<string, number>> | undefine
  */
 export const catalogFacetService = {
   /**
-   * Fetches a snapshot of all relevant facets for the scoped course catalog.
+   * Fetches the authoritative vocabulary currently available in the learner's course catalog
+   * by issuing a zero-hit Algolia search (`hitsPerPage: 0`) scoped to the enterprise's
+   * catalog query UUIDs and content type.
    *
-   * @param index The Algolia SearchIndex for the course catalog.
-   * @param config Optional configuration for facet retrieval limits and filters.
-   * @param context Enterprise-specific context used to scope the search to the correct catalog.
-   * @returns A promise resolving to a normalized CatalogFacetSnapshot and a debug trace.
+   * The resulting `CatalogFacetSnapshot` is the ground-truth dictionary used by
+   * `catalogTranslationRules.translateTaxonomyToCatalog` to validate that any skill or
+   * subject term actually exists in the learner's catalog before it becomes a facet filter.
+   *
+   * @param config Optional retrieval configuration; defaults to `MAX_VALUES_PER_FACET` for
+   *   the `maxValuesPerFacet` Algolia parameter.
+   * @param context Enterprise catalog context containing search catalog UUIDs and their
+   *   corresponding catalog query UUID mappings for scoping the facet call.
+   * @returns A promise resolving to `{ snapshot, trace }` — the facet vocabulary and
+   *   a count summary for debug visibility in the DebugConsole.
    */
   async getFacetSnapshot(
-    index: SearchIndex,
     config: FacetRetrievalConfig = {},
     context?: FacetBootstrapContext,
+    index?: SearchIndex,
   ): Promise<{ snapshot: CatalogFacetSnapshot; trace: FacetSnapshotTrace }> {
     const { maxValuesPerFacet = MAX_VALUES_PER_FACET } = config;
+    const resolvedIndex = index ?? (() => {
+      const appConfig = getConfig();
+      const searchClient: SearchClient = algoliasearch(
+        appConfig.ALGOLIA_APP_ID,
+        appConfig.ALGOLIA_SEARCH_API_KEY,
+      );
+      return searchClient.initIndex(appConfig.ALGOLIA_INDEX_NAME);
+    })();
 
     // Build facetFilters to scope the snapshot to the enterprise catalog.
     // content_type:course scopes to courses; catalog query UUIDs restrict to the enterprise catalog.
@@ -62,7 +84,7 @@ export const catalogFacetService = {
 
     // Query Algolia for facets only (hitsPerPage: 0)
     // We use an empty query ('') to get the full universe of available values within the scope.
-    const response = await index.search('', {
+    const response = await resolvedIndex.search('', {
       facets: ['*'],
       hitsPerPage: 0,
       maxValuesPerFacet,

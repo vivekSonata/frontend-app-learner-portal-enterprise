@@ -14,6 +14,8 @@ describe('xpertContractService', () => {
         learnerLevel: 'intermediate',
         timeCommitment: 'short',
         excludeTags: ['PHP'],
+        discovery: { some: 'data' },
+        wasDiscoveryUsed: true,
       });
 
       const result = xpertContractService.parseIntent(raw);
@@ -27,6 +29,8 @@ describe('xpertContractService', () => {
         learnerLevel: 'intermediate',
         timeCommitment: 'short',
         excludeTags: ['PHP'],
+        discovery: { some: 'data' },
+        wasDiscoveryUsed: true,
       });
     });
 
@@ -49,7 +53,7 @@ describe('xpertContractService', () => {
         timeCommitment: 'forever',
       };
       const result = xpertContractService.normalizeIntent(raw);
-      expect(result.learnerLevel).toBe('beginner');
+      expect(result.learnerLevel).toBe('introductory');
       expect(result.timeCommitment).toBe('medium');
     });
 
@@ -96,10 +100,14 @@ describe('xpertContractService', () => {
         reasonings: [
           { id: '1', reasoning: 'Good course' },
         ],
+        discovery: { item: 1 },
+        wasDiscoveryUsed: true,
       });
       const result = xpertContractService.parseReasoning(raw);
       expect(result?.reasonings).toHaveLength(1);
       expect(result?.reasonings[0]).toEqual({ id: '1', reasoning: 'Good course' });
+      expect(result?.discovery).toEqual({ item: 1 });
+      expect(result?.wasDiscoveryUsed).toBe(true);
     });
   });
 });

@@ -6,7 +6,6 @@ import { getConfig } from '@edx/frontend-platform';
 import { AppContext } from '@edx/frontend-platform/react';
 import { intentExtractionXpertService, PromptInterceptFn } from '../services/intentExtraction.xpert.service';
 import { pathwayAssemblerXpertService } from '../services/pathwayAssembler.xpert.service';
-import { facetBootstrapService } from '../services/facetBootstrap';
 import { careerRetrievalService } from '../services/careerRetrieval';
 import { courseRetrievalService } from '../services/courseRetrieval';
 import { intakePreprocessor } from '../services/intakePreprocessor';
@@ -30,8 +29,10 @@ import {
 import { catalogFacetService } from '../services/catalogFacetService';
 import { catalogTranslationRules } from '../services/catalogTranslationRules';
 import { catalogTranslationService } from '../services/catalogTranslationService';
-import { catalogTranslationXpertService } from '../services/catalogTranslation.xpert.service';
+import { mergeTags, mergeDiscovery } from '../utils/discoveryUtils';
 import { FEATURE_STEPS, COURSE_STATUSES } from '../constants';
+import { DEFAULT_XPERT_RAG_TAGS } from '../constants/retrieval.constants';
+import useCatalogAlgoliaSearch from './useCatalogAlgoliaSearch';
 
 /**
  * Union type representing the possible steps in the AI Pathways generation flow.
@@ -83,7 +84,7 @@ function makeCapturingInterceptor(
  * 2. Intent Extraction: AI processes narrative into structured intent.
  * 3. Career Discovery: Search taxonomy for matching professional roles.
  * 4. Selection: User chooses a target career → selectCareer()
- * 5. Translation: Taxonomy terms mapped to valid catalog facets (Rules + AI).
+ * 5. Translation: Taxonomy terms mapped deterministically to catalog facets.
  * 6. Course Discovery: Progressive search "ladder" to find courses → generatePathway()
  * 7. Enrichment: AI generates personalized reasoning for recommendations.
  * 8. UI Rendering: Final pathway displayed to learner.
@@ -131,13 +132,14 @@ export const usePathways = () => {
     shouldUseSecuredAlgoliaApiKey,
   } = useAlgoliaSearch(config.ALGOLIA_INDEX_NAME);
 
+  const { searchIndex: catalogAlgoliaSearchIndex } = useCatalogAlgoliaSearch();
+
+  const currentCatalogIndex = catalogAlgoliaSearchIndex ?? catalogIndex;
+
   const enterpriseCustomerResult = useEnterpriseCustomer();
   const enterpriseCustomer = (enterpriseCustomerResult.data || {}) as { uuid?: string, slug?: string };
   const searchCatalogs = useSearchCatalogs();
 
-  /**
-   * Derived context used to scope all catalog-specific operations (facets, retrieval).
-   */
   const facetContext = useMemo(() => ({
     enterpriseCustomerUuid: enterpriseCustomer.uuid,
     searchCatalogs,
@@ -172,24 +174,16 @@ export const usePathways = () => {
     const requestId = uuidv4();
     const responseModel: AIPathwaysResponseModel = {
       requestId,
+      tags: DEFAULT_XPERT_RAG_TAGS,
       stages: {} as any,
     };
 
     setIsLoading(true);
     setError(null);
     try {
-      // 1. Facet Bootstrap (Fetch common taxonomy values for normalization)
-      const facetStartTime = Date.now();
-      const facets = await facetBootstrapService.bootstrapFacets(jobIndex);
-      responseModel.stages.facetBootstrap = {
-        durationMs: Date.now() - facetStartTime,
-        success: true,
-      };
-
-      // 2. Preprocess Input (Clean narrative and normalize choices)
+      // 1. Preprocess Input (Clean narrative and normalize choices)
       const preprocessed = intakePreprocessor.preprocessInput(args);
-
-      // 3. Intent Extraction (AI stage)
+      // 2. Intent Extraction (AI stage)
       responseModel.promptDebug = promptDebugLogRef.current;
       const profileInterceptor = interceptPromptRef.current
         ? makeCapturingInterceptor(interceptPromptRef.current, promptDebugLogRef.current)
@@ -197,20 +191,26 @@ export const usePathways = () => {
 
       const extractionResult = await intentExtractionXpertService.extractIntent(
         preprocessed,
-        facets,
         profileInterceptor,
+        DEFAULT_XPERT_RAG_TAGS,
       );
       responseModel.stages.intentExtraction = extractionResult.debug;
+      // Sync the top-level tags and discovery with what was actually used
+      responseModel.tags = mergeTags(responseModel.tags, extractionResult.debug.tags);
+      responseModel.discovery = mergeDiscovery(responseModel.discovery, extractionResult.debug.discovery);
+      responseModel.wasDiscoveryUsed = responseModel.wasDiscoveryUsed || extractionResult.debug.wasDiscoveryUsed;
+
       const { intent } = extractionResult;
       setSearchIntent(intent);
 
       // 4. Career Retrieval (Deterministic search based on intent)
       const careerStartTime = Date.now();
-      const careers = await careerRetrievalService.searchCareers(jobIndex, intent);
+      const { careers, trace: careerTrace } = await careerRetrievalService.searchCareers(jobIndex, intent);
       responseModel.stages.careerRetrieval = {
         durationMs: Date.now() - careerStartTime,
         success: true,
         resultCount: careers.length,
+        trace: careerTrace,
       };
 
       // 5. Build the UI-facing profile summary
@@ -274,7 +274,7 @@ export const usePathways = () => {
    * @returns The list of discovered courses.
    */
   const generatePathway = useCallback(async () => {
-    if (!selectedCareer || !searchIntent || !catalogIndex || !pathwayResponse) {
+    if (!selectedCareer || !searchIntent || !currentCatalogIndex || !pathwayResponse) {
       throw new Error('Missing data or search index to generate pathway');
     }
 
@@ -286,22 +286,27 @@ export const usePathways = () => {
       : undefined;
 
     try {
-      // 1. Catalog Facet Snapshot (Ensures grounded search terms)
       const courseStartTime = Date.now();
+
+      // 1. Catalog Facet Snapshot (Grounds skill mapping to this enterprise's catalog)
       const facetStartMs = Date.now();
       const { snapshot: facetSnapshot, trace: facetSnapshotTrace } = await catalogFacetService
-        .getFacetSnapshot(catalogIndex, {}, facetContext);
+        .getFacetSnapshot({}, facetContext, currentCatalogIndex);
       updatedResponseModel.stages.catalogFacetSnapshot = {
         durationMs: Date.now() - facetStartMs,
         success: true,
         trace: facetSnapshotTrace,
       };
 
-      // 2. Rules-first Mapping (Deterministic stage)
+      // 2. Rules-first Mapping (Deterministic: selectedCareer.skills → catalog facets)
       const rulesFirstMs = Date.now();
       const { result: rulesFirst, trace: rulesFirstTrace } = catalogTranslationRules.translateTaxonomyToCatalog({
         careerTitle: selectedCareer.title,
         skills: selectedCareer.skills || [],
+        skillDetails: (selectedCareer.raw?.skills || []) as import('../types').TaxonomySkill[],
+        intentRequiredSkills: searchIntent?.skillsRequired || [],
+        intentPreferredSkills: searchIntent?.skillsPreferred || [],
+        learnerLevel: searchIntent?.learnerLevel,
         industries: selectedCareer.industries || [],
         similarJobs: selectedCareer.similarJobs || [],
         facetSnapshot,
@@ -312,38 +317,12 @@ export const usePathways = () => {
         trace: rulesFirstTrace,
       };
 
-      // 3. AI Mapping (Optional fallback for unmatched terms)
-      let xpertRawResponse: string | undefined;
-      let xpertDebugPayload: {
-        systemPrompt: string; rawResponse: string; durationMs: number; success: boolean;
-      } | undefined;
-      if (rulesFirst.unmatched.length > 0) {
-        try {
-          const xpertResult = await catalogTranslationXpertService.translateUnmatched(
-            {
-              careerTitle: selectedCareer.title,
-              unmatchedSkills: rulesFirst.unmatched,
-              unmatchedIndustries: selectedCareer.industries || [],
-              unmatchedSimilarJobs: selectedCareer.similarJobs || [],
-              facetSnapshot,
-            },
-            pathwayInterceptor,
-          );
-          xpertRawResponse = xpertResult.rawResponse || undefined;
-          xpertDebugPayload = xpertResult.debug;
-        } catch {
-          // Continue with deterministic results if AI fails.
-        }
-      }
-
-      // 4. Consolidation (Merge rules-first and AI mapping)
+      // 3. Translation Consolidation (No AI — produces facet-first or text-fallback intent)
       const translationMs = Date.now();
       const { translation, trace: translationTrace } = catalogTranslationService.processTranslation(
         selectedCareer.title,
-        facetSnapshot,
         rulesFirst,
-        xpertRawResponse,
-        xpertDebugPayload,
+        { learnerLevel: searchIntent?.learnerLevel, intentRequiredSkills: searchIntent?.skillsRequired },
       );
       updatedResponseModel.stages.catalogTranslation = {
         durationMs: Date.now() - translationMs,
@@ -351,29 +330,37 @@ export const usePathways = () => {
         trace: translationTrace,
       };
 
-      // 5. Course Retrieval (Progressive Discovery stage)
+      // 4. Course Retrieval (Progressive Discovery stage)
       const { courses, ladderTrace } = await courseRetrievalService.fetchCourses(
-        catalogIndex,
         translation,
+        currentCatalogIndex,
       );
       updatedResponseModel.stages.retrievalLadder = {
         durationMs: 0,
         success: true,
         trace: ladderTrace,
       };
+      const winningAttempt = ladderTrace.attempts?.find((a) => a.winner);
       updatedResponseModel.stages.courseRetrieval = {
         durationMs: Date.now() - courseStartTime,
         success: true,
         resultCount: courses.length,
-        hits: courses.map(c => c.raw as CourseRetrievalHit),
+        hits: courses.map((c) => c.raw as CourseRetrievalHit),
+        winnerStep: ladderTrace.winnerStep,
+        selectedCourseIds: courses.map((c) => c.id),
+        selectedCourseTitles: courses.map((c) => c.title),
+        requestSummary: {
+          winningQuery: winningAttempt?.query,
+          winningFacetFilters: winningAttempt?.facetFilters,
+          winningOptionalFilters: winningAttempt?.optionalFilters,
+        },
       };
-
       // 6. Assembly (Map to LearningPathway shape)
       const initialPathway: LearningPathway = {
         courses: courses.map(c => ({
           id: c.id,
           title: c.title,
-          level: c.level || 'intermediate',
+          level: c.level || '',
           skills: c.skills,
           status: COURSE_STATUSES.NOT_STARTED,
           order: c.order,
@@ -387,8 +374,18 @@ export const usePathways = () => {
       const enrichmentResult = await pathwayAssemblerXpertService.enrichWithReasoning(
         initialPathway,
         searchIntent,
+        pathwayInterceptor,
+        updatedResponseModel.tags || DEFAULT_XPERT_RAG_TAGS,
       );
       updatedResponseModel.stages.pathwayEnrichment = enrichmentResult.debug;
+      // Sync tags and discovery after enrichment (final stage)
+      updatedResponseModel.tags = mergeTags(updatedResponseModel.tags, enrichmentResult.debug.tags);
+      updatedResponseModel.discovery = mergeDiscovery(
+        updatedResponseModel.discovery,
+        enrichmentResult.debug.discovery,
+      );
+      updatedResponseModel.wasDiscoveryUsed = updatedResponseModel.wasDiscoveryUsed
+        || enrichmentResult.debug.wasDiscoveryUsed;
 
       setPathway(enrichmentResult.pathway);
       setPathwayResponse(updatedResponseModel);
@@ -401,7 +398,7 @@ export const usePathways = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedCareer, searchIntent, catalogIndex, pathwayResponse, facetContext]);
+  }, [selectedCareer, searchIntent, currentCatalogIndex, pathwayResponse, facetContext]);
 
   /**
    * Resets the entire feature state, returning the user to the intake form.
@@ -427,7 +424,7 @@ export const usePathways = () => {
     generateProfile,
     selectCareer,
     generatePathway,
-    reset,
     setCurrentStep,
+    reset,
   };
 };

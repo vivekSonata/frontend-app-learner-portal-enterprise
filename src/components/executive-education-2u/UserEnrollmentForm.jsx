@@ -10,7 +10,7 @@ import { AppContext } from '@edx/frontend-platform/react';
 import { logError, logInfo } from '@edx/frontend-platform/logging';
 import { getConfig } from '@edx/frontend-platform/config';
 import { snakeCaseObject } from '@edx/frontend-platform/utils';
-import { sendEnterpriseTrackEvent, sendEnterpriseTrackEventWithDelay } from '@edx/frontend-enterprise-utils';
+import { sendEnterpriseTrackEvent, sendEnterpriseTrackEventWithDelay } from '@2uinc/frontend-enterprise-utils';
 import dayjs from 'dayjs';
 import reactStringReplace from 'react-string-replace';
 

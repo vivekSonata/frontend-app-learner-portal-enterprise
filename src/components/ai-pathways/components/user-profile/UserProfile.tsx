@@ -14,7 +14,9 @@ import {
   Spinner,
   Alert,
 } from '@openedx/paragon';
+import { ContentCopy } from '@openedx/paragon/icons';
 import type { LearnerProfile, CareerOption, CareerCardModel } from '../../types';
+import { formatCareersAsText } from '../../utils/copyUtils';
 
 interface UserProfileProps {
   /** The learner profile data to display */
@@ -77,6 +79,7 @@ export const UserProfile = ({
   }, [name]);
 
   const [isEditing, setIsEditing] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [editDraft, setEditDraft] = useState({
     careerGoal,
     targetIndustry,
@@ -140,6 +143,18 @@ export const UserProfile = ({
   const handleChange = (field: keyof typeof editDraft, value: string) => {
     setEditDraft(prev => ({ ...prev, [field]: value }));
   };
+
+  const handleCopy = useCallback(async () => {
+    const text = formatCareersAsText(careerMatches);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to copy text: ', err);
+    }
+  }, [careerMatches]);
 
   const renderActionButton = () => {
     if (!isEditing) {
@@ -311,7 +326,18 @@ export const UserProfile = ({
         <Col lg={7} className="mb-4">
           <Card className="h-100 shadow-sm">
             <Card.Body className="p-4">
-              <h3 className="h5 font-weight-bold mb-3">Career Matches</h3>
+              <div className="d-flex justify-content-between align-items-center mb-3">
+                <h3 className="h5 font-weight-bold mb-0">Career Matches</h3>
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="p-0 text-muted"
+                  onClick={handleCopy}
+                  iconBefore={ContentCopy}
+                >
+                  {copied ? 'Copied!' : 'Copy'}
+                </Button>
+              </div>
               <p className="small text-muted mb-4">
                 Based on your goals and current market trends, here are roles that align with your profile.
               </p>
@@ -319,17 +345,18 @@ export const UserProfile = ({
                 {careerMatches.map((match) => {
                   const isSelected = selectedCareer?.title === match.title;
                   return (
-                    <Button
+                    <button
+                      type="button"
                       key={match.title}
-                      variant={isSelected ? 'primary' : 'outline-primary'}
+                      className={`list-group-item list-group-item-action d-flex justify-content-between align-items-center mb-2 rounded ${isSelected ? 'active' : ''}`}
                       onClick={() => onSelectCareer(match)}
-                      className="mb-2 w-100 text-left d-flex justify-content-between align-items-center"
+                      disabled={isGenerating}
                     >
                       <span className="font-weight-bold">{match.title}</span>
-                      <Badge variant="info" className="ml-2">
+                      <Badge variant={isSelected ? 'light' : 'info'} className="ml-2">
                         {Math.round(match.percentMatch * 100)}% match
                       </Badge>
-                    </Button>
+                    </button>
                   );
                 })}
               </div>
@@ -342,7 +369,7 @@ export const UserProfile = ({
             <Card.Body className="p-4">
               <h3 className="h5 font-weight-bold mb-3">Skills to Develop</h3>
               <p className="small text-muted mb-4">Key skills for your target roles.</p>
-              <div className="d-flex flex-wrap gap-2">
+              <div className="d-flex flex-wrap">
                 {selectedCareer?.skills.map((skill) => (
                   <Badge
                     key={skill}

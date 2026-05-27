@@ -6,7 +6,7 @@ import {
   useToggle,
 } from '@openedx/paragon';
 
-import { sendEnterpriseTrackEvent } from '@edx/frontend-enterprise-utils';
+import { sendEnterpriseTrackEvent } from '@2uinc/frontend-enterprise-utils';
 import dayjs from 'dayjs';
 import useExpiry from './data/hooks/useExpiry';
 import { useEnterpriseCustomer, useHasAvailableSubsidiesOrRequests } from '../app/data';

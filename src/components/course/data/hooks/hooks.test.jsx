@@ -7,7 +7,7 @@ import {
 import dayjs from 'dayjs';
 import { getConfig } from '@edx/frontend-platform';
 import { AppContext } from '@edx/frontend-platform/react';
-import { sendEnterpriseTrackEvent } from '@edx/frontend-enterprise-utils';
+import { sendEnterpriseTrackEvent } from '@2uinc/frontend-enterprise-utils';
 import { IntlProvider } from '@edx/frontend-platform/i18n';
 import {
   useBrowseAndRequestCatalogsApplicableToCourse,
@@ -73,7 +73,7 @@ jest.mock('@edx/frontend-platform', () => ({
   getConfig: jest.fn(),
 }));
 
-jest.mock('@edx/frontend-enterprise-utils', () => ({
+jest.mock('@2uinc/frontend-enterprise-utils', () => ({
   sendEnterpriseTrackEvent: jest.fn(),
   hasFeatureFlagEnabled: jest.fn(() => true),
 }));

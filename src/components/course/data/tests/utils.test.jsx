@@ -1,5 +1,8 @@
+import PropTypes from 'prop-types';
 import { getConfig } from '@edx/frontend-platform';
-import { IntlProvider } from '@edx/frontend-platform/i18n';
+import { IntlProvider, useIntl } from '@edx/frontend-platform/i18n';
+import { logError } from '@edx/frontend-platform/logging';
+import { hasFeatureFlagEnabled } from '@2uinc/frontend-enterprise-utils';
 import dayjs from 'dayjs';
 import { render, screen } from '@testing-library/react';
 import MockDate from 'mockdate';
@@ -16,18 +19,23 @@ import {
   getSubscriptionDisabledEnrollmentReasonType,
   isActiveSubscriptionLicense,
   isCurrentCoupon,
+  checkPolicyRedemptionEnabled,
+  formatProgramType,
   pathContainsCourseTypeSlug,
   processCourseSubjects,
+  getSoonestEarliestPossibleExpirationData,
   transformedCourseMetadata,
 } from '../utils';
 import { LICENSE_STATUS } from '../../../enterprise-user-subsidy/data/constants';
 import { findCouponCodeForCourse } from '../../../app/data';
+import { PROGRAM_TYPE_MAP } from '../../../program/data/constants';
 
 jest.mock('@edx/frontend-platform', () => ({
   ensureConfig: jest.fn(),
-  getConfig: () => ({
+  getConfig: jest.fn(() => ({
     LEARNER_SUPPORT_SPEND_ENROLLMENT_LIMITS_URL: 'https://limits.url',
     LEARNER_SUPPORT_ABOUT_DEACTIVATION_URL: 'https://deactivation.url',
+    FEATURE_ENABLE_EMET_REDEMPTION: false,
     COURSE_TYPE_CONFIG: {
       entitlement_course: {
         pathSlug: 'executive-education-2u',
@@ -38,10 +46,35 @@ jest.mock('@edx/frontend-platform', () => ({
         usesEntitlementListPrice: true,
       },
     },
-  }),
+  })),
+}));
+
+jest.mock('@edx/frontend-platform/logging', () => ({
+  logError: jest.fn(),
+}));
+
+jest.mock('@2uinc/frontend-enterprise-utils', () => ({
+  hasFeatureFlagEnabled: jest.fn(),
 }));
 
 const mockCatalogUuid = 'test-catalog-uuid';
+
+const FormatProgramTypeWrapper = ({ programType }) => {
+  const intl = useIntl();
+  return <div>{formatProgramType(programType, intl)}</div>;
+};
+
+FormatProgramTypeWrapper.propTypes = {
+  programType: PropTypes.string.isRequired,
+};
+
+function renderFormattedProgramType(programType) {
+  return render(
+    <IntlProvider locale="en">
+      <FormatProgramTypeWrapper programType={programType} />
+    </IntlProvider>,
+  );
+}
 
 describe('findCouponCodeForCourse', () => {
   const couponCodes = [{
@@ -58,6 +91,145 @@ describe('findCouponCodeForCourse', () => {
 
   test('returns undefined if catalog list is empty', () => {
     expect(findCouponCodeForCourse(couponCodes)).toBeUndefined();
+  });
+});
+
+describe('formatProgramType', () => {
+  it('returns a trademarked localized label for MicroMasters when intl is provided', () => {
+    renderFormattedProgramType(PROGRAM_TYPE_MAP.MICROMASTERS);
+    expect(screen.getByText('MicroMasters® Program')).toBeInTheDocument();
+  });
+
+  it('returns a trademarked localized label for MicroBachelors when intl is provided', () => {
+    renderFormattedProgramType(PROGRAM_TYPE_MAP.MICROBACHELORS);
+    expect(screen.getByText('MicroBachelors® Program')).toBeInTheDocument();
+  });
+
+  it('returns a trademarked fallback element for MicroMasters without intl', () => {
+    const { container } = render(<div>{formatProgramType(PROGRAM_TYPE_MAP.MICROMASTERS)}</div>);
+    expect(container.querySelector('sup')).toHaveTextContent('®');
+    expect(container).toHaveTextContent('MicroMasters® Program');
+  });
+
+  it('returns a localized label for Masters when intl is provided', () => {
+    renderFormattedProgramType(PROGRAM_TYPE_MAP.MASTERS);
+    expect(screen.getByText("Master's")).toBeInTheDocument();
+  });
+
+  it('returns a localized label for Professional Certificate when intl is provided', () => {
+    renderFormattedProgramType(PROGRAM_TYPE_MAP.PROFESSIONAL_CERTIFICATE);
+    expect(screen.getByText('Professional Certificate')).toBeInTheDocument();
+  });
+
+  it('returns a localized label for XSeries when intl is provided', () => {
+    renderFormattedProgramType(PROGRAM_TYPE_MAP.XSERIES);
+    expect(screen.getByText('XSeries Program')).toBeInTheDocument();
+  });
+
+  it('returns a localized label for Credit when intl is provided', () => {
+    renderFormattedProgramType(PROGRAM_TYPE_MAP.CREDIT);
+    expect(screen.getByText('Credit')).toBeInTheDocument();
+  });
+
+  it('returns fallback plain string for Masters without intl', () => {
+    expect(formatProgramType(PROGRAM_TYPE_MAP.MASTERS)).toBe("Master's");
+  });
+
+  it('returns fallback enum value for Professional Certificate without intl', () => {
+    expect(formatProgramType(PROGRAM_TYPE_MAP.PROFESSIONAL_CERTIFICATE)).toBe(
+      PROGRAM_TYPE_MAP.PROFESSIONAL_CERTIFICATE,
+    );
+  });
+
+  it('returns fallback enum value for XSeries without intl', () => {
+    expect(formatProgramType(PROGRAM_TYPE_MAP.XSERIES)).toBe(PROGRAM_TYPE_MAP.XSERIES);
+  });
+
+  it('returns fallback enum value for Credit without intl', () => {
+    expect(formatProgramType(PROGRAM_TYPE_MAP.CREDIT)).toBe(PROGRAM_TYPE_MAP.CREDIT);
+  });
+
+  it('returns trademarked fallback element for MicroBachelors without intl', () => {
+    const { container } = render(<div>{formatProgramType(PROGRAM_TYPE_MAP.MICROBACHELORS)}</div>);
+    expect(container.querySelector('sup')).toHaveTextContent('®');
+    expect(container).toHaveTextContent('MicroBachelors® Program');
+  });
+
+  it('returns input program type for unknown values', () => {
+    expect(formatProgramType('unknown-program-type')).toBe('unknown-program-type');
+  });
+});
+
+describe('checkPolicyRedemptionEnabled', () => {
+  beforeEach(() => {
+    getConfig.mockReturnValue({
+      LEARNER_SUPPORT_SPEND_ENROLLMENT_LIMITS_URL: 'https://limits.url',
+      LEARNER_SUPPORT_ABOUT_DEACTIVATION_URL: 'https://deactivation.url',
+      FEATURE_ENABLE_EMET_REDEMPTION: false,
+      COURSE_TYPE_CONFIG: {
+        entitlement_course: {
+          pathSlug: 'executive-education-2u',
+          usesEntitlementListPrice: true,
+        },
+        'executive-education-2u': {
+          pathSlug: 'executive-education-2u',
+          usesEntitlementListPrice: true,
+        },
+      },
+    });
+    hasFeatureFlagEnabled.mockReturnValue(false);
+  });
+
+  it('returns true when the query flag is enabled', () => {
+    hasFeatureFlagEnabled.mockReturnValue(true);
+
+    expect(checkPolicyRedemptionEnabled({})).toBe(true);
+  });
+
+  it('returns true when the config flag and redeemable policy are enabled', () => {
+    getConfig.mockReturnValue({
+      ...getConfig(),
+      FEATURE_ENABLE_EMET_REDEMPTION: true,
+    });
+
+    expect(checkPolicyRedemptionEnabled({ accessPolicyRedemptionEligibilityData: [{ canRedeem: true }] })).toBe(true);
+  });
+
+  it('returns false when the config flag is enabled but no policy is redeemable', () => {
+    getConfig.mockReturnValue({
+      ...getConfig(),
+      FEATURE_ENABLE_EMET_REDEMPTION: true,
+    });
+
+    expect(checkPolicyRedemptionEnabled({ accessPolicyRedemptionEligibilityData: [{ canRedeem: false }] })).toBe(false);
+  });
+});
+
+describe('getSoonestEarliestPossibleExpirationData', () => {
+  beforeEach(() => {
+    logError.mockClear();
+  });
+
+  it('returns nulls when no assignments are provided', () => {
+    expect(getSoonestEarliestPossibleExpirationData({ assignments: [] })).toEqual({
+      soonestExpirationDate: null,
+      soonestExpirationReason: null,
+      soonestExpiringAssignment: null,
+      sortedExpirationAssignments: null,
+    });
+    expect(logError).toHaveBeenCalledWith('[getSoonestEarliestPossibleExpirationData] no assignments provided in array');
+  });
+
+  it('returns nulls when assignments do not include expiration data', () => {
+    const assignments = [{ uuid: 'assignment-1' }, { uuid: 'assignment-2' }];
+
+    expect(getSoonestEarliestPossibleExpirationData({ assignments })).toEqual({
+      soonestExpirationDate: null,
+      soonestExpirationReason: null,
+      soonestExpiringAssignment: null,
+      sortedExpirationAssignments: null,
+    });
+    expect(logError).toHaveBeenCalledWith('[getSoonestEarliestPossibleExpirationData] [assignment-1, assignment-2] allocated assignment uuids do not contain earliestPossibleExpiration field');
   });
 });
 
@@ -490,10 +662,37 @@ describe('getSubscriptionDisabledEnrollmentReasonType', () => {
       hasEnterpriseAdminUsers: false,
       expectedReasonType: DISABLED_ENROLL_REASON_TYPES.SUBSCRIPTION_LICENSE_NOT_ASSIGNED_NO_ADMINS,
     },
+    // v2 license exists for a different catalog only. Expected: SUBSCRIPTION_LICENSE_NOT_ASSIGNED
+    {
+      customerAgreement: {
+        availableSubscriptionCatalogs: [mockCatalogUuid],
+      },
+      catalogsWithCourse: [mockCatalogUuid],
+      subscriptionLicense: {
+        status: LICENSE_STATUS.ACTIVATED,
+        subscriptionPlan: {
+          isCurrent: true,
+          enterpriseCatalogUuid: 'different-catalog-uuid',
+        },
+      },
+      licensesByCatalog: {
+        'different-catalog-uuid': [{
+          uuid: 'different-license',
+          status: LICENSE_STATUS.ACTIVATED,
+          subscriptionPlan: {
+            isCurrent: true,
+            enterpriseCatalogUuid: 'different-catalog-uuid',
+          },
+        }],
+      },
+      hasEnterpriseAdminUsers: true,
+      expectedReasonType: DISABLED_ENROLL_REASON_TYPES.SUBSCRIPTION_LICENSE_NOT_ASSIGNED,
+    },
   ])('handles no subscriptions and/or license: %s', ({
     customerAgreement,
     catalogsWithCourse,
     subscriptionLicense,
+    licensesByCatalog,
     hasEnterpriseAdminUsers,
     expectedReasonType,
   }) => {
@@ -501,9 +700,106 @@ describe('getSubscriptionDisabledEnrollmentReasonType', () => {
       customerAgreement,
       catalogsWithCourse,
       subscriptionLicense,
+      licensesByCatalog,
       hasEnterpriseAdminUsers,
     });
     expect(reasonType).toEqual(expectedReasonType);
+  });
+
+  it('returns undefined for a v2 applicable license even when the primary subscription license is for another catalog', () => {
+    const reasonType = getSubscriptionDisabledEnrollmentReasonType({
+      customerAgreement: {
+        availableSubscriptionCatalogs: [mockCatalogUuid],
+      },
+      catalogsWithCourse: [mockCatalogUuid],
+      subscriptionLicense: {
+        uuid: 'primary-license',
+        status: LICENSE_STATUS.ACTIVATED,
+        subscriptionPlan: {
+          isCurrent: true,
+          enterpriseCatalogUuid: 'different-catalog-uuid',
+        },
+      },
+      subscriptionLicenses: [
+        {
+          uuid: 'primary-license',
+          status: LICENSE_STATUS.ACTIVATED,
+          subscriptionPlan: {
+            isCurrent: true,
+            enterpriseCatalogUuid: 'different-catalog-uuid',
+          },
+        },
+        {
+          uuid: 'applicable-license',
+          status: LICENSE_STATUS.ACTIVATED,
+          subscriptionPlan: {
+            isCurrent: true,
+            enterpriseCatalogUuid: mockCatalogUuid,
+          },
+        },
+      ],
+      licensesByCatalog: {
+        [mockCatalogUuid]: [{
+          uuid: 'applicable-license',
+          status: LICENSE_STATUS.ACTIVATED,
+          subscriptionPlan: {
+            isCurrent: true,
+            enterpriseCatalogUuid: mockCatalogUuid,
+          },
+        }],
+      },
+      hasEnterpriseAdminUsers: true,
+    });
+
+    expect(reasonType).toBeUndefined();
+  });
+
+  it('returns undefined when schema version is missing but licensesByCatalog has an applicable license', () => {
+    const reasonType = getSubscriptionDisabledEnrollmentReasonType({
+      customerAgreement: {
+        availableSubscriptionCatalogs: [mockCatalogUuid],
+      },
+      catalogsWithCourse: [mockCatalogUuid],
+      subscriptionLicense: {
+        uuid: 'primary-license',
+        status: LICENSE_STATUS.ACTIVATED,
+        subscriptionPlan: {
+          isCurrent: true,
+          enterpriseCatalogUuid: 'different-catalog-uuid',
+        },
+      },
+      subscriptionLicenses: [
+        {
+          uuid: 'primary-license',
+          status: LICENSE_STATUS.ACTIVATED,
+          subscriptionPlan: {
+            isCurrent: true,
+            enterpriseCatalogUuid: 'different-catalog-uuid',
+          },
+        },
+        {
+          uuid: 'applicable-license',
+          status: LICENSE_STATUS.ACTIVATED,
+          subscriptionPlan: {
+            isCurrent: true,
+            enterpriseCatalogUuid: mockCatalogUuid,
+          },
+        },
+      ],
+      licensesByCatalog: {
+        [mockCatalogUuid]: [{
+          uuid: 'applicable-license',
+          status: LICENSE_STATUS.ACTIVATED,
+          subscriptionPlan: {
+            isCurrent: true,
+            enterpriseCatalogUuid: mockCatalogUuid,
+          },
+        }],
+      },
+      hasEnterpriseAdminUsers: true,
+    });
+
+    expect(reasonType).toBeUndefined();
   });
 
   it.each([
@@ -541,6 +837,10 @@ describe('getSubscriptionDisabledEnrollmentReasonType', () => {
     },
     // Current license, with admins. Expected: undefined
     {
+      customerAgreement: {
+        availableSubscriptionCatalogs: [mockCatalogUuid],
+      },
+      catalogsWithCourse: [mockCatalogUuid],
       subscriptionLicense: {
         status: LICENSE_STATUS.ACTIVATED,
         subscriptionPlan: {
@@ -553,6 +853,10 @@ describe('getSubscriptionDisabledEnrollmentReasonType', () => {
     },
     // Current license, no admins. Expected: undefined
     {
+      customerAgreement: {
+        availableSubscriptionCatalogs: [mockCatalogUuid],
+      },
+      catalogsWithCourse: [mockCatalogUuid],
       subscriptionLicense: {
         status: LICENSE_STATUS.ACTIVATED,
         subscriptionPlan: {

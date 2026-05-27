@@ -13,8 +13,7 @@
  * 5. Stage service receives the decision and optionally modified bundle.
  */
 import { useCallback, useRef, useState } from 'react';
-import { XpertPromptBundle } from '../types';
-import { XpertMessage } from '../services/xpert.service';
+import { XpertPromptBundle, XpertMessage } from '../types';
 import { validateBundle, PromptValidationIssue } from '../services/promptValidation';
 
 // ---------------------------------------------------------------------------

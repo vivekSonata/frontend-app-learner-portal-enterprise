@@ -2,7 +2,7 @@ import {
   Fragment, useCallback, useContext, useEffect, useMemo, useState,
 } from 'react';
 import PropTypes from 'prop-types';
-import { SearchContext, setRefinementAction } from '@edx/frontend-enterprise-catalog-search';
+import { SearchContext, setRefinementAction } from '@2uinc/frontend-enterprise-catalog-search';
 import { Configure, InstantSearch } from 'react-instantsearch-dom';
 import { getConfig } from '@edx/frontend-platform/config';
 import { Hyperlink } from '@openedx/paragon';

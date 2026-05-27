@@ -81,7 +81,7 @@ describe('<ProgramProgressSideBar />', () => {
     const { container } = render(
       <ProgramProgressSideBarWithContext />,
     );
-    expect(screen.getByText(`Your ${testProgramData.type} Certificate`)).toBeInTheDocument();
+    expect(screen.getByText('Your MicroMasters® Program Certificate')).toBeInTheDocument();
     expect(container.querySelector('img')).toHaveAttribute('src', programCertImage);
     expect(container.querySelector('.program-cert-link')).toHaveAttribute(
       'href',

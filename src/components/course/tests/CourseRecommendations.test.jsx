@@ -10,7 +10,7 @@ import CourseRecommendations from '../CourseRecommendations';
 import { useCourseMetadata, useCourseRecommendations, useEnterpriseCustomer } from '../../app/data';
 import { authenticatedUserFactory, enterpriseCustomerFactory } from '../../app/data/services/data/__factories__';
 
-jest.mock('@edx/frontend-enterprise-utils', () => ({
+jest.mock('@2uinc/frontend-enterprise-utils', () => ({
   sendEnterpriseTrackEvent: jest.fn(),
   hasFeatureFlagEnabled: jest.fn(),
 }));

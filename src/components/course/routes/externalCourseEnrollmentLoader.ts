@@ -3,7 +3,6 @@ import {
 } from 'react-router-dom';
 
 import {
-  determineSubscriptionLicenseApplicable,
   extractEnterpriseCustomer,
   findCouponCodeForCourse,
   getCourseRunsForRedemption,
@@ -14,6 +13,7 @@ import {
   safeEnsureQueryDataCouponCodes,
   safeEnsureQueryDataCustomerContainsContent,
   safeEnsureQueryDataRedeemablePolicies,
+  resolveApplicableSubscriptionLicense,
   safeEnsureQueryDataSubscriptions,
 } from '../../app/data';
 import { ensureAuthenticatedUser } from '../../app/routes/data';
@@ -77,6 +77,7 @@ const makeExternalCourseEnrollmentLoader: MakeRouteLoaderFunctionWithQueryClient
           safeEnsureQueryDataSubscriptions({
             queryClient,
             enterpriseCustomer,
+            enterpriseSlug,
           }),
           safeEnsureQueryDataRedeemablePolicies({
             queryClient,
@@ -87,18 +88,24 @@ const makeExternalCourseEnrollmentLoader: MakeRouteLoaderFunctionWithQueryClient
         const [
           { catalogList: catalogsWithCourse },
           { couponCodeAssignments },
-          { subscriptionLicense },
+          {
+            subscriptionLicense,
+            subscriptionLicenses = [],
+            licensesByCatalog = {},
+          },
           redeemableLearnerCreditPolicies,
         ] = prerequisiteQueries;
         const lateEnrollmentBufferDays = getLateEnrollmentBufferDays(
           redeemableLearnerCreditPolicies.redeemablePolicies,
         );
-        const isSubscriptionLicenseApplicable = determineSubscriptionLicenseApplicable(
+        const applicableSubscriptionLicense = resolveApplicableSubscriptionLicense({
           subscriptionLicense,
+          subscriptionLicenses,
+          licensesByCatalog,
           catalogsWithCourse,
-        );
+        });
         const applicableCouponCode = findCouponCodeForCourse(couponCodeAssignments, catalogsWithCourse);
-        const hasSubsidyPrioritizedOverLearnerCredit = isSubscriptionLicenseApplicable
+        const hasSubsidyPrioritizedOverLearnerCredit = !!applicableSubscriptionLicense
           || applicableCouponCode?.couponCodeRedemptionCount > 0;
         const { courseRunKeys: courseRunKeysForRedemption } = getCourseRunsForRedemption({
           course: courseMetadata,

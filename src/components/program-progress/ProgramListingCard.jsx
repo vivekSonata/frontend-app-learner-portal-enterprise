@@ -1,17 +1,19 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import PropTypes from 'prop-types';
+import { useIntl } from '@edx/frontend-platform/i18n';
 import {
   breakpoints, Card, Truncate,
 } from '@openedx/paragon';
 import cardFallbackImg from '@edx/brand/paragon/images/card-imagecap-fallback.png';
 
-import { getProgramIcon } from '../course/data/utils';
+import { formatProgramType, getProgramIcon } from '../course/data/utils';
 import { ProgressCategoryBubbles } from '../progress-category-bubbles';
 import { useEnterpriseCustomer } from '../app/data';
 
 const ProgramListingCard = ({ program }) => {
   const { data: enterpriseCustomer } = useEnterpriseCustomer();
+  const intl = useIntl();
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
 
   useEffect(() => {
@@ -80,11 +82,12 @@ const ProgramListingCard = ({ program }) => {
         <div className="d-flex align-items-center">
           <img
             src={getProgramIcon(program.type)}
-            alt="Program Type Logo"
+            alt=""
+            aria-hidden="true"
             className="program-type-icon mr-2"
             style={{ height: 17, width: 'auto' }}
           />
-          {program.type}
+          {formatProgramType(program.type, intl)}
         </div>
       </Card.Section>
       <Card.Section>

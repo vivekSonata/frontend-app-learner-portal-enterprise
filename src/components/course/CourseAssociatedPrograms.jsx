@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Hyperlink } from '@openedx/paragon';
-import { sendEnterpriseTrackEvent } from '@edx/frontend-enterprise-utils';
-import { FormattedMessage } from '@edx/frontend-platform/i18n';
+import { sendEnterpriseTrackEvent } from '@2uinc/frontend-enterprise-utils';
+import { FormattedMessage, useIntl } from '@edx/frontend-platform/i18n';
 
 import { getProgramIcon, formatProgramType } from './data/utils';
 import { features } from '../../config';
@@ -10,6 +10,7 @@ import { useCourseMetadata, useEnterpriseCustomer } from '../app/data';
 const CourseAssociatedPrograms = () => {
   const { data: courseMetadata } = useCourseMetadata();
   const { data: enterpriseCustomer } = useEnterpriseCustomer();
+  const intl = useIntl();
   return (
     <div className="associated-programs mb-5">
       <h3>
@@ -26,13 +27,14 @@ const CourseAssociatedPrograms = () => {
               <div className="program-icon" aria-hidden="true">
                 <img
                   src={getProgramIcon(program.type)}
-                  alt={program.title}
+                  alt=""
+                  aria-hidden="true"
                   className="program-icon mr-2"
                   style={{ width: 20, height: 20 }}
                 />
               </div>
               <div>
-                {formatProgramType(program.type)}
+                {formatProgramType(program.type, intl)}
               </div>
             </div>
             <div className="col">

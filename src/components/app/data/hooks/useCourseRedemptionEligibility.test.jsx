@@ -101,7 +101,7 @@ describe('useCourseRedemptionEligibility', () => {
     jest.clearAllMocks();
     useEnterpriseCustomer.mockReturnValue({ data: mockEnterpriseCustomer });
     fetchCanRedeem.mockResolvedValue(mockCanRedeemData);
-    useParams.mockReturnValue({ courseRunKey: mockCourseRunKey });
+    useParams.mockReturnValue({ courseKey: mockCourseMetadata.key, courseRunKey: mockCourseRunKey });
     useCourseMetadata.mockReturnValue({ data: mockCourseMetadata });
     useLateEnrollmentBufferDays.mockReturnValue(undefined);
     useEnterpriseCustomerContainsContent.mockReturnValue({
@@ -202,7 +202,7 @@ describe('useCourseRedemptionEligibility', () => {
     canRedeemData,
     expectedHasSuccessfulRedemption,
   }) => {
-    useParams.mockReturnValue({ courseRunKey });
+    useParams.mockReturnValue({ courseKey: mockCourseMetadata.key, courseRunKey });
     fetchCanRedeem.mockResolvedValue(canRedeemData);
 
     const { result } = renderHook(() => useCourseRedemptionEligibility(), { wrapper: Wrapper });
@@ -444,7 +444,7 @@ describe('useCourseRedemptionEligibility', () => {
     expectedHasSuccessfulRedemption,
     expectedAvailableCourseRunKeys,
   }) => {
-    useParams.mockReturnValue({ courseRunKey });
+    useParams.mockReturnValue({ courseKey: mockCourseMetadata.key, courseRunKey });
     fetchCanRedeem.mockResolvedValue(canRedeemData);
     useCourseMetadata.mockReturnValue({ data: useCourseMetadataData });
 

@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom/extend-expect';
 import { AppContext } from '@edx/frontend-platform/react';
 import { IntlProvider } from '@edx/frontend-platform/i18n';
-import { SearchContext } from '@edx/frontend-enterprise-catalog-search';
+import { SearchContext } from '@2uinc/frontend-enterprise-catalog-search';
 import { renderWithRouter } from '../../../utils/tests';
 import { SkillsContext } from '../../skills-quiz/SkillsContextProvider';
 import { GOAL_DROPDOWN_DEFAULT_OPTION } from '../../skills-quiz/constants';

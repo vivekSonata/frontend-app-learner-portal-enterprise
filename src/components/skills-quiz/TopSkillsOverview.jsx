@@ -1,7 +1,7 @@
 import { useContext, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { Badge, Card, Skeleton } from '@openedx/paragon';
-import { SearchContext } from '@edx/frontend-enterprise-catalog-search';
+import { SearchContext } from '@2uinc/frontend-enterprise-catalog-search';
 import { getConfig } from '@edx/frontend-platform/config';
 import { Configure, InstantSearch } from 'react-instantsearch-dom';
 import { SkillsContext } from './SkillsContextProvider';

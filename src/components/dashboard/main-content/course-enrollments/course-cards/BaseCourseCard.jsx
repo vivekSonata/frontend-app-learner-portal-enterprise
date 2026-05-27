@@ -20,7 +20,7 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import classNames from 'classnames';
 import { defineMessages, FormattedMessage, useIntl } from '@edx/frontend-platform/i18n';
-import { sendEnterpriseTrackEvent } from '@edx/frontend-enterprise-utils';
+import { sendEnterpriseTrackEvent } from '@2uinc/frontend-enterprise-utils';
 
 import { getConfig } from '@edx/frontend-platform';
 import dayjs from '../../../../../utils/dayjs';

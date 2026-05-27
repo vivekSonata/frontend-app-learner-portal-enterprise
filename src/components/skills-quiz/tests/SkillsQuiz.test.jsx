@@ -1,8 +1,8 @@
 import '@testing-library/jest-dom/extend-expect';
 import { screen } from '@testing-library/react';
 import { AppContext } from '@edx/frontend-platform/react';
-import { SearchData } from '@edx/frontend-enterprise-catalog-search';
-import { hasFeatureFlagEnabled } from '@edx/frontend-enterprise-utils';
+import { SearchData } from '@2uinc/frontend-enterprise-catalog-search';
+import { hasFeatureFlagEnabled } from '@2uinc/frontend-enterprise-utils';
 import { IntlProvider } from '@edx/frontend-platform/i18n';
 
 import { SKILLS_QUIZ_SEARCH_PAGE_MESSAGE } from '../constants';
@@ -13,8 +13,8 @@ import { useAlgoliaSearch, useDefaultSearchFilters, useEnterpriseCustomer } from
 import { authenticatedUserFactory, enterpriseCustomerFactory } from '../../app/data/services/data/__factories__';
 import { resetMockReactInstantSearch, setFakeHits } from '../__mocks__/react-instantsearch-dom';
 
-jest.mock('@edx/frontend-enterprise-utils', () => ({
-  ...jest.requireActual('@edx/frontend-enterprise-utils'),
+jest.mock('@2uinc/frontend-enterprise-utils', () => ({
+  ...jest.requireActual('@2uinc/frontend-enterprise-utils'),
   sendEnterpriseTrackEvent: jest.fn(),
   hasFeatureFlagEnabled: jest.fn().mockReturnValue(false),
 }));

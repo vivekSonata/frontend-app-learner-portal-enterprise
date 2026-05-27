@@ -48,10 +48,10 @@ describe('careerRetrieval coverage gaps', () => {
     };
     mockIndex.search.mockResolvedValue({ hits: [hit] });
 
-    const results = await careerRetrievalService.searchCareers(mockIndex, { condensedQuery: 'test' } as any);
-    expect(results[0].id).toBe('obj-1');
+    const { careers } = await careerRetrievalService.searchCareers(mockIndex, { condensedQuery: 'test' } as any);
+    expect(careers[0].id).toBe('obj-1');
     // @ts-ignore
-    expect(results[0].marketData.medianSalary).toBeUndefined();
+    expect(careers[0].marketData.medianSalary).toBeUndefined();
   });
 
   it('dedupeStrings removes duplicates and empties', async () => {

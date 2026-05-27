@@ -94,7 +94,7 @@ const ProgramProgressPage = () => {
                   </h3>
                   <p>
                     <FormattedMessage
-                      id="eenterprise.dashboard.programs.about.page.course.progress.tracking.message"
+                      id="enterprise.dashboard.programs.about.page.course.progress.tracking.message"
                       defaultMessage="Track and plan your progress through the {totalCoursesInProgram} courses in this program."
                       description="Message for courses progress tracking on programs about page"
                       values={{

@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Card, Button } from '@openedx/paragon';
 import { Link } from 'react-router-dom';
-import { sendEnterpriseTrackEvent } from '@edx/frontend-enterprise-utils';
+import { sendEnterpriseTrackEvent } from '@2uinc/frontend-enterprise-utils';
 import { FormattedMessage } from '@edx/frontend-platform/i18n';
 import BetaBadge from './BetaBadge';
 import { useEnterpriseCustomer } from '../app/data';

@@ -1,5 +1,5 @@
 import { useContext, useEffect, useMemo } from 'react';
-import { SearchContext, setRefinementAction, SHOW_ALL_NAME } from '@edx/frontend-enterprise-catalog-search';
+import { SearchContext, setRefinementAction, SHOW_ALL_NAME } from '@2uinc/frontend-enterprise-catalog-search';
 import { logInfo } from '@edx/frontend-platform/logging';
 import useEnterpriseCustomer from './useEnterpriseCustomer';
 import useSearchCatalogs from './useSearchCatalogs';

@@ -4,11 +4,19 @@ import dayjs from 'dayjs';
 import { LICENSE_STATUS } from '../../enterprise-user-subsidy/data/constants';
 import { POLICY_TYPES } from '../../enterprise-user-subsidy/enterprise-offers/data/constants';
 import {
+  buildCatalogIndex,
   determineAssignmentState,
   determineLearnerHasContentAssignmentsOnly,
+  determineSubscriptionLicenseApplicable,
   filterPoliciesByExpirationAndActive,
+  findSubscriptionLicenseForCourseCatalogs,
+  getActivatedCurrentSubscriptionLicenses,
+  getApplicableSubscriptionLicenses,
   getAvailableCourseRuns,
   getSubsidyToApplyForCourse,
+  normalizeCatalogUuid,
+  resolveApplicableSubscriptionLicense,
+  selectBestLicense,
   transformGroupMembership,
   transformLearnerContentAssignment,
 } from './utils';
@@ -1350,6 +1358,18 @@ describe('resolveBFFQuery', () => {
       expectedRouteKey: 'dashboard',
     },
     {
+      currentPathname: `/${mockEnterpriseCustomer.slug}/course/course-v1:test+TST101+2026`,
+      expectedRouteKey: 'dashboard',
+    },
+    {
+      currentPathname: `/${mockEnterpriseCustomer.slug}/executive-education-2u/course/course-v1:test+TST101+2026`,
+      expectedRouteKey: 'dashboard',
+    },
+    {
+      currentPathname: `/${mockEnterpriseCustomer.slug}/course/course-v1:test+TST101+2026/enroll/course-v1:test+TST101+2026`,
+      expectedRouteKey: 'dashboard',
+    },
+    {
       currentPathname: `/${mockEnterpriseCustomer.slug}/search`,
       expectedRouteKey: 'search',
     },
@@ -1381,5 +1401,330 @@ describe('resolveBFFQuery', () => {
     const pathname = `/${mockEnterpriseCustomer.slug}/unsupported-bff-route`;
     const result = resolveBFFQuery(pathname);
     expect(result).toEqual(null);
+  });
+});
+
+// ===================== Multi-license utility tests =====================
+
+const makeLicense = (overrides = {}) => ({
+  uuid: 'license-uuid-1',
+  status: LICENSE_STATUS.ACTIVATED,
+  userEmail: 'test@example.com',
+  activationDate: '2024-01-15T09:00:00Z',
+  lastRemindDate: null,
+  revokedDate: null,
+  activationKey: 'key-1',
+  subscriptionPlan: {
+    uuid: 'plan-uuid-1',
+    title: 'Test Plan',
+    enterpriseCatalogUuid: 'catalog-uuid-1',
+    isActive: true,
+    isCurrent: true,
+    startDate: '2024-01-01T00:00:00Z',
+    expirationDate: '2026-12-31T00:00:00Z',
+    daysUntilExpiration: 300,
+    daysUntilExpirationIncludingRenewals: 300,
+    shouldAutoApplyLicenses: false,
+  },
+  ...overrides,
+});
+
+describe('normalizeCatalogUuid', () => {
+  it('strips hyphens and lowercases', () => {
+    expect(normalizeCatalogUuid('AAAA-BBBB-CCCC')).toEqual('aaaabbbbcccc');
+  });
+
+  it('handles null/undefined', () => {
+    expect(normalizeCatalogUuid(null)).toEqual('');
+    expect(normalizeCatalogUuid(undefined)).toEqual('');
+  });
+
+  it('handles empty string', () => {
+    expect(normalizeCatalogUuid('')).toEqual('');
+  });
+});
+
+describe('getActivatedCurrentSubscriptionLicenses', () => {
+  it('returns only activated + current licenses', () => {
+    const licenses = [
+      makeLicense(),
+      makeLicense({ uuid: 'rev', status: 'revoked' }),
+      makeLicense({ uuid: 'expired', subscriptionPlan: { ...makeLicense().subscriptionPlan, isCurrent: false } }),
+    ];
+    const result = getActivatedCurrentSubscriptionLicenses(licenses);
+    expect(result).toHaveLength(1);
+    expect(result[0].uuid).toEqual('license-uuid-1');
+  });
+
+  it('returns empty array when given no licenses', () => {
+    expect(getActivatedCurrentSubscriptionLicenses([])).toEqual([]);
+    expect(getActivatedCurrentSubscriptionLicenses()).toEqual([]);
+  });
+});
+
+describe('buildCatalogIndex', () => {
+  it('groups activated current licenses by catalog uuid', () => {
+    const licenses = [
+      makeLicense({ uuid: 'l1', subscriptionPlan: { ...makeLicense().subscriptionPlan, enterpriseCatalogUuid: 'cat-a' } }),
+      makeLicense({ uuid: 'l2', subscriptionPlan: { ...makeLicense().subscriptionPlan, enterpriseCatalogUuid: 'cat-b' } }),
+      makeLicense({ uuid: 'l3', subscriptionPlan: { ...makeLicense().subscriptionPlan, enterpriseCatalogUuid: 'cat-a' } }),
+    ];
+    const result = buildCatalogIndex(licenses);
+    expect(Object.keys(result)).toEqual(['cat-a', 'cat-b']);
+    expect(result['cat-a']).toHaveLength(2);
+    expect(result['cat-b']).toHaveLength(1);
+  });
+
+  it('skips licenses without catalogUuid', () => {
+    const licenses = [
+      makeLicense({ subscriptionPlan: { ...makeLicense().subscriptionPlan, enterpriseCatalogUuid: null } }),
+    ];
+    const result = buildCatalogIndex(licenses);
+    expect(result).toEqual({});
+  });
+
+  it('skips revoked/expired licenses', () => {
+    const licenses = [
+      makeLicense({ status: 'revoked', subscriptionPlan: { ...makeLicense().subscriptionPlan, enterpriseCatalogUuid: 'cat-a' } }),
+    ];
+    const result = buildCatalogIndex(licenses);
+    expect(result).toEqual({});
+  });
+
+  it('returns empty object for empty input', () => {
+    expect(buildCatalogIndex([])).toEqual({});
+    expect(buildCatalogIndex()).toEqual({});
+  });
+});
+
+describe('getApplicableSubscriptionLicenses', () => {
+  it('returns licenses whose catalog is in catalogsWithCourse', () => {
+    const licenses = [
+      makeLicense({ uuid: 'l1', subscriptionPlan: { ...makeLicense().subscriptionPlan, enterpriseCatalogUuid: 'cat-a' } }),
+      makeLicense({ uuid: 'l2', subscriptionPlan: { ...makeLicense().subscriptionPlan, enterpriseCatalogUuid: 'cat-b' } }),
+    ];
+    const result = getApplicableSubscriptionLicenses(licenses, ['cat-a']);
+    expect(result).toHaveLength(1);
+    expect(result[0].uuid).toEqual('l1');
+  });
+
+  it('normalizes catalog uuids for comparison', () => {
+    const licenses = [
+      makeLicense({ subscriptionPlan: { ...makeLicense().subscriptionPlan, enterpriseCatalogUuid: 'AAAA-BBBB' } }),
+    ];
+    const result = getApplicableSubscriptionLicenses(licenses, ['aaaabbbb']);
+    expect(result).toHaveLength(1);
+  });
+
+  it('returns empty when no catalogs match', () => {
+    const licenses = [makeLicense()];
+    const result = getApplicableSubscriptionLicenses(licenses, ['no-match']);
+    expect(result).toEqual([]);
+  });
+
+  it('returns empty for empty inputs', () => {
+    expect(getApplicableSubscriptionLicenses([], [])).toEqual([]);
+    expect(getApplicableSubscriptionLicenses()).toEqual([]);
+  });
+});
+
+describe('selectBestLicense', () => {
+  it('returns null for empty array', () => {
+    expect(selectBestLicense([])).toBeNull();
+    expect(selectBestLicense()).toBeNull();
+  });
+
+  it('returns the only license when array has one element', () => {
+    const license = makeLicense();
+    expect(selectBestLicense([license])).toBe(license);
+  });
+
+  it('prefers license with latest expiration date', () => {
+    const earlyExpiry = makeLicense({
+      uuid: 'early',
+      subscriptionPlan: { ...makeLicense().subscriptionPlan, expirationDate: '2026-06-01T00:00:00Z' },
+    });
+    const lateExpiry = makeLicense({
+      uuid: 'late',
+      subscriptionPlan: { ...makeLicense().subscriptionPlan, expirationDate: '2027-12-01T00:00:00Z' },
+    });
+    expect(selectBestLicense([earlyExpiry, lateExpiry]).uuid).toEqual('late');
+    expect(selectBestLicense([lateExpiry, earlyExpiry]).uuid).toEqual('late');
+  });
+
+  it('breaks ties by earliest activation date', () => {
+    const plan = { ...makeLicense().subscriptionPlan, expirationDate: '2027-01-01T00:00:00Z' };
+    const older = makeLicense({ uuid: 'older', activationDate: '2024-01-01T00:00:00Z', subscriptionPlan: plan });
+    const newer = makeLicense({ uuid: 'newer', activationDate: '2025-06-01T00:00:00Z', subscriptionPlan: plan });
+    expect(selectBestLicense([newer, older]).uuid).toEqual('older');
+  });
+
+  it('breaks final ties by uuid descending', () => {
+    const plan = { ...makeLicense().subscriptionPlan, expirationDate: '2027-01-01T00:00:00Z' };
+    const a = makeLicense({ uuid: 'aaa', activationDate: '2024-01-01T00:00:00Z', subscriptionPlan: plan });
+    const b = makeLicense({ uuid: 'zzz', activationDate: '2024-01-01T00:00:00Z', subscriptionPlan: plan });
+    expect(selectBestLicense([a, b]).uuid).toEqual('zzz');
+  });
+});
+
+describe('findSubscriptionLicenseForCourseCatalogs', () => {
+  it('returns null when catalogsWithCourse is empty', () => {
+    expect(findSubscriptionLicenseForCourseCatalogs([], { 'cat-a': [makeLicense()] })).toBeNull();
+  });
+
+  it('returns null when licensesByCatalog is empty', () => {
+    expect(findSubscriptionLicenseForCourseCatalogs(['cat-a'], {})).toBeNull();
+  });
+
+  it('returns matching license when catalog matches', () => {
+    const license = makeLicense({ subscriptionPlan: { ...makeLicense().subscriptionPlan, enterpriseCatalogUuid: 'cat-a' } });
+    const result = findSubscriptionLicenseForCourseCatalogs(['cat-a'], { 'cat-a': [license] });
+    expect(result.uuid).toEqual('license-uuid-1');
+  });
+
+  it('skips non-matching catalogs', () => {
+    const license = makeLicense();
+    const result = findSubscriptionLicenseForCourseCatalogs(['cat-x'], { 'cat-a': [license] });
+    expect(result).toBeNull();
+  });
+
+  it('deduplicates licenses across multiple catalogs', () => {
+    const license = makeLicense({ uuid: 'shared' });
+    const result = findSubscriptionLicenseForCourseCatalogs(
+      ['cat-a', 'cat-b'],
+      { 'cat-a': [license], 'cat-b': [license] },
+    );
+    expect(result.uuid).toEqual('shared');
+  });
+
+  it('returns best license when multiple match', () => {
+    const earlyExpiry = makeLicense({
+      uuid: 'early',
+      subscriptionPlan: { ...makeLicense().subscriptionPlan, enterpriseCatalogUuid: 'cat-a', expirationDate: '2026-06-01T00:00:00Z' },
+    });
+    const lateExpiry = makeLicense({
+      uuid: 'late',
+      subscriptionPlan: { ...makeLicense().subscriptionPlan, enterpriseCatalogUuid: 'cat-a', expirationDate: '2027-12-01T00:00:00Z' },
+    });
+    const result = findSubscriptionLicenseForCourseCatalogs(['cat-a'], { 'cat-a': [earlyExpiry, lateExpiry] });
+    expect(result.uuid).toEqual('late');
+  });
+
+  it('skips licenses without uuid', () => {
+    const noUuid = makeLicense({ uuid: undefined });
+    const result = findSubscriptionLicenseForCourseCatalogs(['catalog-uuid-1'], { 'catalog-uuid-1': [noUuid] });
+    expect(result).toBeNull();
+  });
+});
+
+describe('resolveApplicableSubscriptionLicense', () => {
+  it('returns null when no licenses and no subscriptionLicense', () => {
+    const result = resolveApplicableSubscriptionLicense({
+      catalogsWithCourse: ['cat-a'],
+    });
+    expect(result).toBeNull();
+  });
+
+  it('returns license from licensesByCatalog when available', () => {
+    const license = makeLicense({ subscriptionPlan: { ...makeLicense().subscriptionPlan, enterpriseCatalogUuid: 'cat-a' } });
+    const result = resolveApplicableSubscriptionLicense({
+      licensesByCatalog: { 'cat-a': [license] },
+      catalogsWithCourse: ['cat-a'],
+    });
+    expect(result.uuid).toEqual('license-uuid-1');
+  });
+
+  it('falls back to subscriptionLicense when licensesByCatalog is empty', () => {
+    const license = makeLicense();
+    const result = resolveApplicableSubscriptionLicense({
+      subscriptionLicense: license,
+      catalogsWithCourse: ['catalog-uuid-1'],
+    });
+    expect(result.uuid).toEqual('license-uuid-1');
+  });
+
+  it('returns null when subscriptionLicense does not match catalog', () => {
+    const license = makeLicense();
+    const result = resolveApplicableSubscriptionLicense({
+      subscriptionLicense: license,
+      catalogsWithCourse: ['no-match'],
+    });
+    expect(result).toBeNull();
+  });
+
+  it('prefers licensesByCatalog over subscriptionLicense', () => {
+    const indexedLicense = makeLicense({
+      uuid: 'indexed',
+      subscriptionPlan: { ...makeLicense().subscriptionPlan, enterpriseCatalogUuid: 'cat-a' },
+    });
+    const singleLicense = makeLicense({
+      uuid: 'single',
+      subscriptionPlan: { ...makeLicense().subscriptionPlan, enterpriseCatalogUuid: 'cat-a' },
+    });
+    const result = resolveApplicableSubscriptionLicense({
+      subscriptionLicense: singleLicense,
+      licensesByCatalog: { 'cat-a': [indexedLicense] },
+      catalogsWithCourse: ['cat-a'],
+    });
+    expect(result.uuid).toEqual('indexed');
+  });
+
+  it('returns null when licensesByCatalog has no match for course catalog (multi-license mode)', () => {
+    const indexedLicense = makeLicense({
+      uuid: 'indexed',
+      subscriptionPlan: { ...makeLicense().subscriptionPlan, enterpriseCatalogUuid: 'cat-b' },
+    });
+    const singleLicense = makeLicense({
+      uuid: 'single',
+      subscriptionPlan: { ...makeLicense().subscriptionPlan, enterpriseCatalogUuid: 'cat-a' },
+    });
+    const result = resolveApplicableSubscriptionLicense({
+      subscriptionLicense: singleLicense,
+      licensesByCatalog: { 'cat-b': [indexedLicense] },
+      catalogsWithCourse: ['cat-a'],
+    });
+    // In multi-license mode, no fallback to subscriptionLicense; returns null if no catalog match
+    expect(result).toBeNull();
+  });
+
+  it('returns null when all inputs are empty', () => {
+    const result = resolveApplicableSubscriptionLicense({});
+    expect(result).toBeNull();
+  });
+});
+
+describe('determineSubscriptionLicenseApplicable', () => {
+  it('returns true when a matching license exists', () => {
+    const license = makeLicense();
+    expect(determineSubscriptionLicenseApplicable(
+      license,
+      ['catalog-uuid-1'],
+    )).toBe(true);
+  });
+
+  it('returns false when no matching license exists', () => {
+    const license = makeLicense();
+    expect(determineSubscriptionLicenseApplicable(
+      license,
+      ['no-match-catalog'],
+    )).toBe(false);
+  });
+
+  it('returns false when subscriptionLicense is null', () => {
+    expect(determineSubscriptionLicenseApplicable(
+      null,
+      ['catalog-uuid-1'],
+    )).toBe(false);
+  });
+
+  it('returns true when licensesByCatalog has a matching license', () => {
+    const license = makeLicense({
+      subscriptionPlan: { ...makeLicense().subscriptionPlan, enterpriseCatalogUuid: 'cat-a' },
+    });
+    expect(determineSubscriptionLicenseApplicable(
+      null,
+      ['cat-a'],
+      { 'cat-a': [license] },
+    )).toBe(true);
   });
 });

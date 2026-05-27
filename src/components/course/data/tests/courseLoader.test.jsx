@@ -346,12 +346,12 @@ describe('courseLoader', () => {
     let expectedQueryCount;
     if (hasCourseMetadata) {
       if (isAssignmentOnlyLearner && !hasAssignmentForCourse) {
-        expectedQueryCount = 14;
-      } else {
         expectedQueryCount = 15;
+      } else {
+        expectedQueryCount = 16;
       }
     } else {
-      expectedQueryCount = 14;
+      expectedQueryCount = 15;
     }
     expect(mockQueryClient.ensureQueryData).toHaveBeenCalledTimes(expectedQueryCount);
 

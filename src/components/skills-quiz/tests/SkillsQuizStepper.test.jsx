@@ -6,33 +6,33 @@ import '@testing-library/jest-dom/extend-expect';
 import userEvent from '@testing-library/user-event';
 import { screen } from '@testing-library/react';
 import { AppContext } from '@edx/frontend-platform/react';
-import { SearchContext, SearchData } from '@edx/frontend-enterprise-catalog-search';
-import { sendEnterpriseTrackEvent } from '@edx/frontend-enterprise-utils';
+import { SearchContext, SearchData } from '@2uinc/frontend-enterprise-catalog-search';
+import { sendEnterpriseTrackEvent } from '@2uinc/frontend-enterprise-utils';
 import { IntlProvider } from '@edx/frontend-platform/i18n';
 
 import { renderWithRouter } from '../../../utils/tests';
 import edxLogo from '../images/edx-logo.svg';
 import SkillsQuizStepper from '../SkillsQuizStepper';
 import { SkillsContext, SkillsContextProvider } from '../SkillsContextProvider';
+import industryMessages from '../industryMessages';
 import {
   CURRENT_JOB_FACET,
   DESIRED_JOB_FACET,
   DROPDOWN_OPTION_CHANGE_CAREERS,
   DROPDOWN_OPTION_IMPROVE_CURRENT_ROLE,
   GOAL_DROPDOWN_DEFAULT_OPTION,
-  INDUSTRY_FACET,
 } from '../constants';
 import { useAlgoliaSearch, useDefaultSearchFilters, useEnterpriseCustomer } from '../../app/data';
 import { authenticatedUserFactory, enterpriseCustomerFactory } from '../../app/data/services/data/__factories__';
 
-jest.mock('@edx/frontend-enterprise-utils', () => ({
-  ...jest.requireActual('@edx/frontend-enterprise-utils'),
+jest.mock('@2uinc/frontend-enterprise-utils', () => ({
+  ...jest.requireActual('@2uinc/frontend-enterprise-utils'),
   sendEnterpriseTrackEvent: jest.fn(),
 }));
 
 // Add mocks.
-jest.mock('@edx/frontend-enterprise-catalog-search', () => ({
-  ...jest.requireActual('@edx/frontend-enterprise-catalog-search'),
+jest.mock('@2uinc/frontend-enterprise-catalog-search', () => ({
+  ...jest.requireActual('@2uinc/frontend-enterprise-catalog-search'),
   useNbHitsFromSearchResults: () => 0,
   deleteRefinementAction: jest.fn(),
   removeFromRefinementArray: jest.fn(),
@@ -244,7 +244,7 @@ describe('<SkillsQuizStepper />', () => {
       { route: '/test/skills-quiz/' },
     );
 
-    expect(screen.getByText(INDUSTRY_FACET.title)).toBeInTheDocument();
+    expect(screen.getByText(industryMessages.industryLabel.defaultMessage)).toBeInTheDocument();
     expect(screen.getByText(CURRENT_JOB_FACET.title)).toBeInTheDocument();
     expect(screen.getByText(DESIRED_JOB_FACET.title)).toBeInTheDocument();
   });

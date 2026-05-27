@@ -1,6 +1,6 @@
 import { act, screen, waitFor } from '@testing-library/react';
 import { AppContext } from '@edx/frontend-platform/react';
-import { sendEnterpriseTrackEvent } from '@edx/frontend-enterprise-utils';
+import { sendEnterpriseTrackEvent } from '@2uinc/frontend-enterprise-utils';
 import { IntlProvider } from '@edx/frontend-platform/i18n';
 import userEvent from '@testing-library/user-event';
 import { useEnterpriseCustomer } from '../../app/data';
@@ -11,7 +11,7 @@ import '@testing-library/jest-dom/extend-expect';
 jest.mock('../../app/data', () => ({
   useEnterpriseCustomer: jest.fn(),
 }));
-jest.mock('@edx/frontend-enterprise-utils', () => ({
+jest.mock('@2uinc/frontend-enterprise-utils', () => ({
   sendEnterpriseTrackEvent: jest.fn(),
 }));
 

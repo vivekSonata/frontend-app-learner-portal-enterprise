@@ -26,14 +26,9 @@ describe('PathwayFilters', () => {
     render(<PathwayFilters {...mockProps} />);
 
     // Search change
-    const searchInput = screen.getByPlaceholderText(/Filter by title or reasoning/i);
+    const searchInput = screen.getByLabelText('Search Courses');
     fireEvent.change(searchInput, { target: { value: 'react' } });
     expect(mockProps.onSearchChange).toHaveBeenCalledWith('react');
-
-    // Search clear
-    const clearBtn = screen.getByRole('button', { name: /Clear search/i });
-    fireEvent.click(clearBtn);
-    expect(mockProps.onSearchChange).toHaveBeenCalledWith('');
 
     // Status change
     const statusSelect = screen.getByLabelText('Status');
@@ -55,9 +50,5 @@ describe('PathwayFilters', () => {
     const resetBtn = screen.getByRole('button', { name: /Reset Filters/i });
     fireEvent.click(resetBtn);
     expect(mockProps.onReset).toHaveBeenCalledTimes(1);
-
-    // Search submit
-    fireEvent.keyDown(searchInput, { key: 'Enter', code: 'Enter' });
-    expect(mockProps.onSearchChange).toHaveBeenCalled();
   });
 });

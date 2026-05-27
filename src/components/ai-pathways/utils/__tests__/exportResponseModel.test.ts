@@ -118,5 +118,96 @@ describe('exportResponseModel', () => {
 
       clickSpy.mockRestore();
     });
+
+    it('serializes new trace fields into exported JSON', () => {
+      const fullTraceResponse: any = {
+        requestId: 'trace-test',
+        stages: {
+          careerRetrieval: {
+            durationMs: 100,
+            success: true,
+            resultCount: 1,
+            trace: {
+              query: 'cloud engineer',
+              requiredSkillFilters: ['Cloud Computing'],
+              droppedSkillInputs: [{ skill: 'SQL & Python', reason: 'malformed-compound' }],
+            },
+          },
+          rulesFirstMapping: {
+            durationMs: 30,
+            success: true,
+            trace: {
+              termsConsidered: 1,
+              exactMatchCount: 1,
+              exactMatches: ['Cloud Computing'],
+              aliasMatchCount: 0,
+              aliasMatches: [],
+              unmatchedCount: 0,
+              unmatched: [],
+              tieringTrace: [{
+                name: 'Cloud Computing',
+                tier: 'broad_anchor',
+                decision: 'strict',
+              }],
+            },
+          },
+          catalogTranslation: {
+            durationMs: 20,
+            success: true,
+            trace: {
+              query: 'cloud computing',
+              queryAlternates: [],
+              courseSearchMode: 'hybrid-broad',
+              querySource: 'intent_required',
+              strictSkillCount: 1,
+              strictSkills: ['Cloud Computing'],
+              boostSkillCount: 0,
+              boostSkills: [],
+              droppedSkillCount: 0,
+              facetMatchCount: 1,
+              facetMatchRate: 1,
+            },
+          },
+          retrievalLadder: {
+            durationMs: 0,
+            success: true,
+            trace: {
+              winnerStep: 1,
+              attempts: [{
+                step: 1, searchMode: 'hybrid-broad', hitCount: 5, winner: true,
+              }],
+            },
+          },
+          courseRetrieval: {
+            durationMs: 50,
+            success: true,
+            resultCount: 1,
+            hits: [],
+            winnerStep: 1,
+            selectedCourseTitles: ['Cloud Fundamentals'],
+            requestSummary: { winningQuery: 'cloud computing' },
+          },
+        },
+      };
+
+      const createObjectURLMock = jest.fn(() => 'mock-url');
+      window.URL.createObjectURL = createObjectURLMock;
+      window.URL.revokeObjectURL = jest.fn();
+      const appendChildMock = jest.fn();
+      document.body.appendChild = appendChildMock;
+      document.body.removeChild = jest.fn();
+      jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+
+      exportResponseModel(fullTraceResponse, new Date(2023, 0, 1));
+
+      // Verify the serialized JSON by using safeSerialize directly
+      const serialized = safeSerialize(fullTraceResponse);
+      expect(serialized).toContain('"query": "cloud engineer"');
+      expect(serialized).toContain('"decision": "strict"');
+      expect(serialized).toContain('"querySource": "intent_required"');
+      expect(serialized).toContain('"searchMode": "hybrid-broad"');
+      expect(serialized).toContain('"winnerStep": 1');
+      expect(serialized).toContain('"Cloud Fundamentals"');
+    });
   });
 });

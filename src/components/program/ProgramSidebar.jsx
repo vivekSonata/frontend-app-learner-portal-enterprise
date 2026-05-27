@@ -1,6 +1,7 @@
 import {
   AccessTime, LibraryBooks, Person, Speed,
 } from '@openedx/paragon/icons';
+import { useIntl } from '@edx/frontend-platform/i18n';
 import ProgramSidebarListItem from './ProgramSidebarListItem';
 import {
   getProgramPacing,
@@ -13,19 +14,24 @@ import {
 import { useProgramDetails } from '../app/data';
 
 const ProgramSidebar = () => {
+  const intl = useIntl();
   const { data: program } = useProgramDetails();
-  const expertInstructionSecondaryContent = getExpertInstructionSecondaryContent(program);
+  const expertInstructionSecondaryContent = getExpertInstructionSecondaryContent(program, intl);
   const programPacingType = getProgramPacing(program);
-  const verboseProgramPacingType = getVerboseProgramPacing(programPacingType);
-  const programPacingTypeContent = getProgramPacingTypeContent(programPacingType);
-  const programDuration = getProgramDuration(program);
-  const totalEstimatedEffortInHoursPerWeek = getTotalEstimatedEffortInHoursPerWeek(program);
+  const verboseProgramPacingType = getVerboseProgramPacing(programPacingType, intl);
+  const programPacingTypeContent = getProgramPacingTypeContent(programPacingType, intl);
+  const programDuration = getProgramDuration(program, intl);
+  const totalEstimatedEffortInHoursPerWeek = getTotalEstimatedEffortInHoursPerWeek(program, intl);
 
   return (
     <ul className="pl-0 mb-5 program-details-sidebar">
       <ProgramSidebarListItem
         icon={LibraryBooks}
-        label="Expert instruction"
+        label={intl.formatMessage({
+          id: 'enterprise.program.sidebar.expert.instruction.label',
+          defaultMessage: 'Expert instruction',
+          description: 'Label for the expert instruction row in the program sidebar.',
+        })}
         content={expertInstructionSecondaryContent}
       />
 
@@ -42,7 +48,11 @@ const ProgramSidebar = () => {
         programDuration && (
           <ProgramSidebarListItem
             icon={AccessTime}
-            label="Length"
+            label={intl.formatMessage({
+              id: 'enterprise.program.sidebar.length.label',
+              defaultMessage: 'Length',
+              description: 'Label for the duration row in the program sidebar.',
+            })}
             content={programDuration}
           />
         )
@@ -51,7 +61,11 @@ const ProgramSidebar = () => {
         totalEstimatedEffortInHoursPerWeek && (
           <ProgramSidebarListItem
             icon={Speed}
-            label="Effort"
+            label={intl.formatMessage({
+              id: 'enterprise.program.sidebar.effort.label',
+              defaultMessage: 'Effort',
+              description: 'Label for the effort row in the program sidebar.',
+            })}
             content={totalEstimatedEffortInHoursPerWeek}
           />
         )

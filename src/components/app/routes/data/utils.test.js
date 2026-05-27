@@ -312,6 +312,29 @@ describe('validateAlgoliaValidUntil', () => {
     jest.clearAllMocks();
     resolveBFFQuery.mockReturnValue(queryEnterpriseLearnerSearchBFF);
   });
+
+  it('does not throw when algolia metadata is null', async () => {
+    const mockQueryClient = {
+      ensureQueryData: jest.fn().mockResolvedValue(),
+      getQueryData: jest.fn().mockResolvedValue({
+        algolia: null,
+      }),
+      setQueryData: jest.fn(),
+      invalidateQueries: jest.fn(),
+    };
+
+    await expect(validateAlgoliaValidUntil({
+      queryClient: mockQueryClient,
+      requestUrl: {
+        pathname: '/testSlug/search',
+      },
+      isBFFData: true,
+      enterpriseSlug: 'testSlug',
+    })).resolves.toBeUndefined();
+
+    expect(mockQueryClient.invalidateQueries).not.toHaveBeenCalled();
+  });
+
   it.each(generateTestPermutations(
     {
       isBFFData: [true, false],

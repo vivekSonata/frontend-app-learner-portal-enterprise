@@ -3,7 +3,7 @@ import { screen, waitFor } from '@testing-library/react';
 import { IntlProvider } from '@edx/frontend-platform/i18n';
 import '@testing-library/jest-dom/extend-expect';
 import { getAuthenticatedHttpClient } from '@edx/frontend-platform/auth';
-import { LEARNING_TYPE_COURSE } from '@edx/frontend-enterprise-catalog-search/data/constants';
+import { LEARNING_TYPE_COURSE } from '@2uinc/frontend-enterprise-catalog-search/data/constants';
 import { AppContext } from '@edx/frontend-platform/react';
 import { generateTestPermutations, renderWithRouter } from '../../../utils/tests';
 

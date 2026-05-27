@@ -195,4 +195,30 @@ describe('UserProfile', () => {
     const btn = screen.getByText('Building Pathway...');
     expect(btn).toBeDisabled();
   });
+
+  it('handles copy careers to clipboard', async () => {
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: jest.fn().mockImplementation(() => Promise.resolve()),
+      },
+    });
+
+    customRender(
+      <UserProfile
+        profile={mockProfile}
+        selectedCareer={mockSelectedCareer}
+        onSelectCareer={mockOnSelectCareer}
+        onBuildPathway={mockOnBuildPathway}
+      />,
+    );
+
+    const copyBtn = screen.getByText('Copy');
+    await act(async () => {
+      fireEvent.click(copyBtn);
+    });
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining('Software Engineer'));
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining('JS'));
+    expect(screen.getByText('Copied!')).toBeInTheDocument();
+  });
 });

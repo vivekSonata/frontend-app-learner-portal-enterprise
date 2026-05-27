@@ -1,5 +1,6 @@
 import { useContext } from 'react';
 import PropTypes from 'prop-types';
+import { FormattedMessage, useIntl } from '@edx/frontend-platform/i18n';
 import { AppContext } from '@edx/frontend-platform/react';
 import { Collapsible, Hyperlink } from '@openedx/paragon';
 import { AddCircle, RemoveCircle } from '@openedx/paragon/icons';
@@ -57,9 +58,16 @@ ProgramStaff.propTypes = {
 
 const ProgramInstructors = () => {
   const { data: program } = useProgramDetails();
+  const intl = useIntl();
   return (
     <div className="mb-5">
-      <h3>Meet your instructors</h3>
+      <h3>
+        <FormattedMessage
+          id="enterprise.program.instructors.heading"
+          defaultMessage="Meet your instructors"
+          description="Heading for the instructors section on the program detail page"
+        />
+      </h3>
       {program.authoringOrganizations.length > 0 && (
         <div className="row no-gutters mt-3">
           {program.authoringOrganizations.map(authoringOrganization => (
@@ -72,7 +80,17 @@ const ProgramInstructors = () => {
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  <img src={authoringOrganization.logoImageUrl} alt={`${authoringOrganization.name} logo`} />
+                  <img
+                    src={authoringOrganization.logoImageUrl}
+                    alt={intl.formatMessage(
+                      {
+                        id: 'enterprise.program.instructors.organization.logo.alt',
+                        defaultMessage: '{organizationName} logo',
+                        description: 'Alt text for an authoring organization logo in the instructors section on the program detail page',
+                      },
+                      { organizationName: authoringOrganization.name },
+                    )}
+                  />
                 </a>
               </div>
               <Hyperlink destination={authoringOrganization.marketingUrl} target="_blank">
@@ -86,7 +104,13 @@ const ProgramInstructors = () => {
       {program.staff.length > 4 && (
         <Collapsible.Advanced className="collapsible program-staff">
           <Collapsible.Trigger className="collapsible-trigger d-flex">
-            <h4 className="h4 mb-0 mr-2 title">See instructor bios</h4>
+            <h4 className="h4 mb-0 mr-2 title">
+              <FormattedMessage
+                id="enterprise.program.instructors.see.bios"
+                defaultMessage="See instructor bios"
+                description="Label for the collapsible trigger that expands instructor biographies on the program detail page"
+              />
+            </h4>
             <Collapsible.Visible whenClosed>
               <AddCircle className="mr-2" />
             </Collapsible.Visible>

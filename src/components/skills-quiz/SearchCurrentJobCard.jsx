@@ -1,6 +1,6 @@
 import { Configure, InstantSearch } from 'react-instantsearch-dom';
 import { useContext, useEffect, useMemo } from 'react';
-import { SearchContext } from '@edx/frontend-enterprise-catalog-search';
+import { SearchContext } from '@2uinc/frontend-enterprise-catalog-search';
 import PropTypes from 'prop-types';
 import { getConfig } from '@edx/frontend-platform/config';
 import { AlgoliaFilterBuilder } from '../AlgoliaFilterBuilder';

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import ISO6391 from 'iso-639-1';
-import { sendEnterpriseTrackEvent } from '@edx/frontend-enterprise-utils';
+import { sendEnterpriseTrackEvent } from '@2uinc/frontend-enterprise-utils';
 
 import {
   AccessTime, Equalizer, Institution, Person, School, Speed, Tag, VideoFile,

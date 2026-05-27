@@ -1,5 +1,5 @@
 import { defineMessages } from '@edx/frontend-platform/i18n';
-import { getSearchFacetFilters as getBaseSearchFacetFilters } from '@edx/frontend-enterprise-catalog-search';
+import { getSearchFacetFilters as getBaseSearchFacetFilters } from '@2uinc/frontend-enterprise-catalog-search';
 import { features } from '../../config';
 
 export function isShortCourse(course) {
@@ -21,6 +21,11 @@ const messages = defineMessages({
     id: 'search.facetFilters.programs.typeahead.aria.label',
     defaultMessage: 'Type to find a program',
     description: 'Aria label for the programs typeahead input',
+  },
+  newContentTitle: {
+    id: 'search.facetFilters.newContent.title',
+    defaultMessage: 'Recently added',
+    description: 'Title for the new content (recently added) facet filter',
   },
 });
 
@@ -55,6 +60,14 @@ export function getSearchFacetFilters(intl) {
       return false;
     });
   });
+
+  if (features.NEW_CONTENT_FACET) {
+    searchFilters.push({
+      attribute: 'is_new_content',
+      title: intl.formatMessage(messages.newContentTitle),
+      isEndOfRow: true,
+    });
+  }
 
   return searchFilters;
 }

@@ -1,6 +1,6 @@
 import PropTypes from 'prop-types';
 import { hydrateAuthenticatedUser } from '@edx/frontend-platform/auth';
-import { SearchData } from '@edx/frontend-enterprise-catalog-search';
+import { SearchData } from '@2uinc/frontend-enterprise-catalog-search';
 
 import VisualizeCareer from './VisualizeCareer';
 import AddJobRole from './AddJobRole';

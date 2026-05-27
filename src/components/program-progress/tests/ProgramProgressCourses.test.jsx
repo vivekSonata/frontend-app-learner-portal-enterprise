@@ -5,7 +5,6 @@ import { IntlProvider } from '@edx/frontend-platform/i18n';
 import { AppContext } from '@edx/frontend-platform/react';
 import dayjs from '../../../utils/dayjs';
 import ProgramProgressCourses from '../ProgramProgressCourses';
-import { NotCurrentlyAvailable } from '../data/constants';
 import { COURSE_MODES_MAP, useEnterpriseCustomer, useHasAvailableSubsidiesOrRequests } from '../../app/data';
 import { authenticatedUserFactory, enterpriseCustomerFactory } from '../../app/data/services/data/__factories__';
 
@@ -354,7 +353,7 @@ describe('<ProgramProgressCourses />', () => {
 
     render(<ProgramProgressCoursesWrapper courseData={courseDataNotStartedCourse} />);
     expect(screen.getByText(courseDataNotStartedCourse.notStarted[0].title)).toBeInTheDocument();
-    expect(screen.getByText(NotCurrentlyAvailable)).toBeInTheDocument();
+    expect(screen.getByText('Not Currently Available')).toBeInTheDocument();
   });
 
   it('displays the not started course with multiple runs and one of them is enrollable', () => {

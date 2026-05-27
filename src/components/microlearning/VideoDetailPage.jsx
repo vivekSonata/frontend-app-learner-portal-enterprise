@@ -1,7 +1,7 @@
 /* eslint-disable max-len */
 import { useContext, useEffect, useRef } from 'react';
 import { AppContext } from '@edx/frontend-platform/react';
-import { sendEnterpriseTrackEvent } from '@edx/frontend-enterprise-utils';
+import { sendEnterpriseTrackEvent } from '@2uinc/frontend-enterprise-utils';
 import {
   Badge, Button, Container, Icon, Row, Skeleton,
 } from '@openedx/paragon';

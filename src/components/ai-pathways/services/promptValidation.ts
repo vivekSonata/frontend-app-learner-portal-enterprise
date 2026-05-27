@@ -41,6 +41,14 @@ export interface PromptValidationResult {
 // Internal helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Constructs a `PromptValidationIssue` from its constituent fields.
+ *
+ * @param severity Whether this issue blocks execution (`'error'`) or is advisory only (`'warning'`).
+ * @param code A stable, machine-readable issue code (e.g. `'EMPTY_REQUIRED_PART'`).
+ * @param message A human-readable explanation suitable for the DebugConsole.
+ * @returns A structured `PromptValidationIssue` object.
+ */
 function makeIssue(
   severity: ValidationSeverity,
   code: string,
@@ -58,6 +66,9 @@ function makeIssue(
  *
  * Every part marked `required: true` in the bundle must exist and must have a
  * non-empty `label`.  Parts with missing or blank labels are reported as errors.
+ *
+ * @param bundle The prompt bundle to inspect.
+ * @returns An array of `error`-severity issues for any missing or empty required parts.
  */
 function checkRequiredParts(bundle: XpertPromptBundle): PromptValidationIssue[] {
   const issues: PromptValidationIssue[] = [];
@@ -93,6 +104,9 @@ function checkRequiredParts(bundle: XpertPromptBundle): PromptValidationIssue[] 
  *
  * `bundle.combined` must be non-empty after trimming.  If `combined` is empty
  * despite parts existing, something went wrong during concatenation.
+ *
+ * @param bundle The prompt bundle to inspect.
+ * @returns An array containing a single `error` issue if `combined` is empty, otherwise `[]`.
  */
 function checkNotEmpty(bundle: XpertPromptBundle): PromptValidationIssue[] {
   const issues: PromptValidationIssue[] = [];
@@ -115,6 +129,10 @@ function checkNotEmpty(bundle: XpertPromptBundle): PromptValidationIssue[] {
  *
  * When `combined` exceeds `PROMPT_SIZE_WARNING_THRESHOLD` characters a warning
  * is emitted.  This does NOT block execution.
+ *
+ * @param bundle The prompt bundle to inspect.
+ * @returns An array containing a single `warning` issue if `combined` exceeds the threshold,
+ *   otherwise `[]`.
  */
 function checkSizeThreshold(bundle: XpertPromptBundle): PromptValidationIssue[] {
   const issues: PromptValidationIssue[] = [];
@@ -154,6 +172,8 @@ function checkSizeThreshold(bundle: XpertPromptBundle): PromptValidationIssue[] 
  * @param requiredLabels Optional list of `PromptPartLabel` values that **must**
  *   appear in `bundle.parts` regardless of the `required` flag on each part.
  *   Useful when a call-site has extra invariants (e.g. "base" must always exist).
+ * @returns A `PromptValidationResult` with `valid` (`true` when no errors), all `issues`,
+ *   and a `warnings` convenience subset.
  */
 export function validateBundle(
   bundle: XpertPromptBundle,

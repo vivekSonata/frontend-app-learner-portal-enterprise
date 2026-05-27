@@ -44,7 +44,7 @@ jest.mock('@edx/frontend-platform/logging', () => ({
   logInfo: jest.fn(),
   logError: jest.fn(),
 }));
-jest.mock('@edx/frontend-enterprise-utils');
+jest.mock('@2uinc/frontend-enterprise-utils');
 jest.mock('./data', () => ({
   ...jest.requireActual('./data'),
   checkoutExecutiveEducation2U: jest.fn(),

@@ -1,5 +1,6 @@
 import { screen, render } from '@testing-library/react';
 import '@testing-library/jest-dom/extend-expect';
+import { IntlProvider } from '@edx/frontend-platform/i18n';
 
 import ProgramProgressHeader from '../ProgramProgressHeader';
 import { getProgramIcon } from '../data/utils';
@@ -11,7 +12,9 @@ jest.mock('../../app/data', () => ({
 }));
 
 const ProgramProgressHeaderWithContext = () => (
-  <ProgramProgressHeader />
+  <IntlProvider locale="en">
+    <ProgramProgressHeader />
+  </IntlProvider>
 );
 
 const testProgramData = {

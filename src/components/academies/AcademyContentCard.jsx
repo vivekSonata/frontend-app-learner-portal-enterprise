@@ -7,7 +7,7 @@ import PropTypes from 'prop-types';
 import {
   LEARNING_TYPE_COURSE,
   LEARNING_TYPE_EXECUTIVE_EDUCATION,
-} from '@edx/frontend-enterprise-catalog-search/data/constants';
+} from '@2uinc/frontend-enterprise-catalog-search/data/constants';
 import { getSupportedLocale } from '../app/data/utils';
 import SearchCourseCard from '../search/SearchCourseCard';
 import { useAlgoliaSearch, useEnterpriseCustomer } from '../app/data';

@@ -1,4 +1,4 @@
-import { SearchData } from '@edx/frontend-enterprise-catalog-search';
+import { SearchData } from '@2uinc/frontend-enterprise-catalog-search';
 import { useIntl } from '@edx/frontend-platform/i18n';
 
 import Search from './Search';

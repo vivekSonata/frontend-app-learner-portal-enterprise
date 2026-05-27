@@ -4,26 +4,7 @@
  * AI services (Xpert), and retrieval layers (Algolia).
  */
 
-/**
- * Represents a single facet value from a search index.
- */
-export interface FacetValue {
-  /** The human-readable or machine-name value. */
-  value: string;
-  /** Optional count of documents matching this facet value. */
-  count?: number;
-}
-
-/**
- * References to taxonomical facets used for career and course matching.
- * Primarily used in the intent extraction and translation pipeline.
- */
-export interface FacetReference {
-  skills: FacetValue[];
-  industries: FacetValue[];
-  jobSources: FacetValue[];
-  name: FacetValue[];
-}
+import { CatalogSkillMatch } from './translationContracts';
 
 /**
  * Defines the lifecycle of a course within a learning pathway.
@@ -68,7 +49,7 @@ export interface LearningPathway {
 /**
  * Standard learner difficulty tiers.
  */
-export type LearnerLevel = 'beginner' | 'intermediate' | 'advanced';
+export type LearnerLevel = 'introductory' | 'intermediate' | 'advanced';
 
 /**
  * Preferred intensity of the learning journey.
@@ -98,6 +79,10 @@ export interface XpertIntent {
   timeCommitment: TimeCommitment;
   /** List of tags or terms to explicitly exclude from results. */
   excludeTags: string[];
+  /** Discovery data from Xpert RAG retrieval. */
+  discovery?: any;
+  /** Whether discovery RAG was used during the request. */
+  wasDiscoveryUsed?: boolean;
 }
 
 /**
@@ -287,12 +272,6 @@ export interface TaxonomyResult {
   /** Historical job posting data. */
   job_postings?: TaxonomyJobPosting[];
 
-  /** Algolia highlighting metadata. */
-  _highlightResult?: Record<string, unknown>;
-  /** Algolia snippet metadata. */
-  _snippetResult?: Record<string, unknown>;
-  /** Algolia ranking metadata. */
-  _rankingInfo?: Record<string, unknown>;
 }
 
 /**
@@ -357,6 +336,47 @@ export interface PathwayFilters {
 }
 
 /**
+ * Trace produced by `careerRetrievalService.searchCareers`, capturing the exact
+ * Algolia request parameters and a summary of returned career results.
+ * Surfaced in the DebugConsole "Stage 3: Career Retrieval" panel.
+ */
+export interface CareerRetrievalTrace {
+  /** The search query string sent to Algolia. */
+  query: string;
+  /** Maximum number of results requested. */
+  hitsPerPage: number;
+  /** Algolia hard-filter expression (industries, job sources, excluded tags). */
+  filters?: string;
+  /** Algolia optional-filter strings used to boost required and preferred skills. */
+  optionalFilters?: string[];
+  /** Required skills that passed malformed-compound filtering and were sent as boost signals. */
+  requiredSkillFilters?: string[];
+  /** Preferred skills that passed filtering and learner-level checks and were sent as lower-weight boosts. */
+  preferredSkillFilters?: string[];
+  /** Skills that were excluded from the request, with the reason for each exclusion. */
+  droppedSkillInputs?: Array<{ skill: string; reason: string }>;
+  /** Learner difficulty level passed through from intent extraction. */
+  learnerLevel?: string;
+  /** Summary of the top career results returned by Algolia. */
+  resultSummaries?: Array<{
+    /** Unique career ID from the taxonomy index. */
+    id: string;
+    /** Professional role title. */
+    title: string;
+    /** Total number of skills associated with this career in the taxonomy. */
+    skillCount: number;
+    /** Top 5 skills sorted by Lightcast significance (most in-demand first). */
+    topSkills?: Array<{ name: string; significance?: number; uniquePostings?: number; typeName?: string }>;
+    /** Industries where this career is prevalent. */
+    industries?: string[];
+    /** Median annual salary from Lightcast job posting data. */
+    medianSalary?: number;
+    /** Number of unique job postings for this role. */
+    uniquePostings?: number;
+  }>;
+}
+
+/**
  * Performance and success metrics for a single pipeline stage.
  */
 export interface StageMetrics {
@@ -383,6 +403,27 @@ export interface FacetSnapshotTrace {
 }
 
 /**
+ * Per-skill entry in the tiering trace: records how a signal was classified and
+ * what catalog match (if any) it was assigned to.
+ */
+export interface TieredSkillTrace {
+  name: string;
+  normalizedName?: string;
+  source?: 'intent_required' | 'intent_preferred' | 'career_taxonomy';
+  tier?: import('./translationContracts').RetrievalSkillTier;
+  score?: number;
+  significance?: number;
+  uniquePostings?: number;
+  typeName?: string;
+  catalogSkill?: string;
+  catalogField?: string;
+  matchMethod?: 'exact' | 'alias' | 'xpert' | 'none';
+  /** Final routing decision: strict facet filter, optional boost, noise-dropped, or unmatched. */
+  decision?: 'strict' | 'boost' | 'dropped' | 'unmatched';
+  reasons?: string[];
+}
+
+/**
  * Traces the outcome of deterministic mapping from taxonomy to catalog facets.
  * Identifies which terms matched exactly or via aliases.
  */
@@ -401,38 +442,141 @@ export interface RulesFirstMappingTrace {
   aliasMatches: string[];
   /** List of terms that remain unmatched. */
   unmatched: string[];
+  /** Catalog skills classified as broad_anchor (used as strict facetFilters). */
+  broadAnchorMatches?: string[];
+  /** Catalog skills classified as role_differentiator (broad boosting signals). */
+  roleDifferentiatorMatches?: string[];
+  /** Catalog skills classified as narrow_signal (specific tool/language boosting signals). */
+  narrowSignalMatches?: string[];
+  /** Catalog skills classified as role_differentiator or narrow_signal (combined boost set). */
+  boostMatches?: string[];
+  /** Skills classified as noise and excluded from retrieval. */
+  noiseDropped?: string[];
+  /** Number of broad_anchor candidates found before catalog matching. */
+  strictCandidateCount?: number;
+  /** Number of role_differentiator + narrow_signal candidates found before catalog matching. */
+  boostCandidateCount?: number;
+  /** Full tiering trace for all input signals with catalog match and routing decision. */
+  tieringTrace?: TieredSkillTrace[];
+}
+
+/**
+ * A skill signal entering the tiering pipeline, before tier classification.
+ * Aggregated from intent extraction output (`intent_required`, `intent_preferred`)
+ * and the selected career's Lightcast taxonomy record (`career_taxonomy`).
+ */
+export interface SkillSignal {
+  /** The skill name as provided by the source. */
+  name: string;
+  /** Where this signal originated in the pipeline. */
+  source: 'intent_required' | 'intent_preferred' | 'career_taxonomy';
+  /** Lightcast significance metric — higher values indicate the skill is more commonly required. */
+  significance?: number;
+  /** Number of unique job postings that require this skill (from Lightcast). */
+  uniquePostings?: number;
+  /** Lightcast skill category (e.g., 'Common Skill', 'Specialized Skill', 'Software Product'). */
+  typeName?: string;
+}
+
+/**
+ * A skill signal after classification by `skillTiering.tierSkillSignal`.
+ * Extends SkillSignal with a routing tier, a composite score, and the reasoning
+ * that drove the classification — all surfaced in the TieredSkillTrace debug output.
+ */
+export interface TieredSkillSignal extends SkillSignal {
+  /** The retrieval tier that determines how this skill is used in Algolia queries. */
+  tier: import('./translationContracts').RetrievalSkillTier;
+  /** Human-readable explanations for the tier assignment (e.g., 'lightcast-type=Common Skill'). */
+  reasons: string[];
+  /** Lowercased, trimmed version of the skill name — used for deduplication and catalog lookup. */
+  normalizedName: string;
+  /** Composite relevance score (0–100) within its tier, boosted by Lightcast significance. */
+  score: number;
 }
 
 /**
  * Traces the final output of the catalog translation stage.
- * Includes Xpert-specific metadata if AI was used for mapping.
+ * Splits matched skills into strict broad anchors (facetFilters) and boost signals (optionalFilters).
+ *
+ * courseSearchMode:
+ *   - hybrid-broad: primary mode — broad anchors as facetFilters + boosts as optionalFilters
+ *   - facet-first: strict-only (legacy, no boost signals)
+ *   - text-boost: no strict anchors, boost signals only as optionalFilters
+ *   - text-fallback: no matched skills, fall back to careerTitle text search
  */
 export interface CatalogTranslationTrace {
-  /** The final generated search query. */
+  /** Broad query terms derived from intentRequiredSkills or broad anchor catalog names. */
   query: string;
-  /** Fallback or broader query variations. */
+  /** Text fallback queries (e.g., [careerTitle]) used if facet steps find no results. */
   queryAlternates: string[];
-  /** Count of required skills. */
+  /** Count of broad anchor skills used as hard facet filters. */
   strictSkillCount: number;
-  /** Count of preferred/boosted skills. */
+  /** Count of boost skill filters (role_differentiator + narrow_signal). */
   boostSkillCount: number;
-  /** Count of category hints. */
-  subjectHintCount: number;
   /** Count of skills that could not be mapped and were dropped. */
   droppedSkillCount: number;
+  /** Catalog skill values used as hard facet filters (broad anchors). */
   strictSkills: string[];
+  /** Catalog skill values used as optional boost filters. */
   boostSkills: string[];
-  subjectHints: string[];
-  /** Whether the AI (Xpert) was involved in this translation. */
-  xpertUsed: boolean;
-  /** The full system prompt sent to Xpert. */
-  xpertSystemPrompt?: string;
-  /** The raw, unparsed response from Xpert. */
-  xpertRawResponse?: string;
-  /** Duration of the Xpert call in milliseconds. */
-  xpertDurationMs?: number;
-  /** Whether the Xpert call was successful. */
-  xpertSuccess?: boolean;
+  /** Full CatalogSkillMatch entries for the strict filter set. */
+  strictSkillFilters?: CatalogSkillMatch[];
+  /** Full CatalogSkillMatch entries for the boost filter set. */
+  boostSkillFilters?: CatalogSkillMatch[];
+  /** Retrieval mode determined by the strict/boost split. */
+  courseSearchMode: 'facet-first' | 'text-fallback' | 'hybrid-broad' | 'text-boost';
+  /** Number of career skills that successfully mapped to catalog facets. */
+  facetMatchCount: number;
+  /** Ratio of matched skills to total input skills (0–1). */
+  facetMatchRate: number;
+  /** Human-readable reason for how strictSkillFilters were selected. */
+  strictSelectionReason?: string;
+  /** Human-readable reason for how boostSkillFilters were selected. */
+  boostSelectionReason?: string;
+  /** Skills from the taxonomy that had no catalog match. */
+  droppedTaxonomySkills?: string[];
+  /** Count of matched skills per tier. */
+  tierCounts?: Partial<Record<import('./translationContracts').RetrievalSkillTier, number>>;
+  /** What drove the query value. */
+  querySource?: 'intent_required' | 'strict_filters' | 'career_title' | 'fallback';
+  /** Learner level passed into the translation options. */
+  learnerLevel?: string;
+}
+
+/**
+ * Trace produced by the `rerank()` function inside `courseRetrievalService`.
+ * Records the scoring inputs and output order for every course evaluated
+ * in a given retrieval ladder step. Surfaced in the DebugConsole under each
+ * ladder attempt when `rerankApplied` is true.
+ */
+export interface CourseRerankTrace {
+  /** Number of courses evaluated before reranking. */
+  inputCount: number;
+  /** Number of courses in the output (same as inputCount — reranking never drops courses). */
+  outputCount: number;
+  /** Learner difficulty level used to compute level-match bonuses. */
+  learnerLevel?: string;
+  /** Per-course scoring breakdown, ordered by finalRank ascending. */
+  courseScores?: Array<{
+    /** Algolia objectID. */
+    objectID: string;
+    /** Course title. */
+    title?: string;
+    /** Zero-based rank before reranking (Algolia's original relevance order). */
+    originalRank: number;
+    /** Zero-based rank after reranking. */
+    finalRank: number;
+    /** Composite score: strictSkill matches × 10 + boostSkill matches × 3 + level bonus. */
+    score: number;
+    /** Strict-filter skills found in this course's skill_names or skills.name fields. */
+    matchedStrictSkills?: string[];
+    /** Boost-filter skills found in this course's skill fields. */
+    matchedBoostSkills?: string[];
+    /** The course's difficulty level as indexed in Algolia. */
+    levelType?: string;
+    /** How closely the course level aligns with the learner's level. */
+    levelCompatibility?: 'matched' | 'near' | 'mismatch' | 'unknown';
+  }>;
 }
 
 /**
@@ -444,16 +588,28 @@ export interface RetrievalLadderAttempt {
   step: 1 | 2 | 3 | 4;
   /** Human-readable label for this attempt step. */
   label: string;
+  /** Retrieval mode used for this attempt. */
+  searchMode?: 'hybrid-broad' | 'boosted-text' | 'career-text' | 'scope-only' | 'error';
   /** The exact query used. */
   query?: string;
   /** Applied facet filters. */
   facetFilters?: unknown;
   /** Applied optional (boosting) filters. */
   optionalFilters?: unknown;
+  /** Broad anchor skills used as facet filters in this step. */
+  strictSkillsUsed?: string[];
+  /** Boost skills used as optional filters in this step. */
+  boostSkillsUsed?: string[];
   /** Number of courses found. */
   hitCount: number;
   /** Whether this attempt was selected as the "winner" for the pathway. */
   winner: boolean;
+  /** Whether post-retrieval reranking was applied to this attempt's results. */
+  rerankApplied?: boolean;
+  /** Rerank scoring trace (present when rerankApplied is true). */
+  rerankTrace?: CourseRerankTrace;
+  /** Full Algolia request params for this attempt. */
+  requestParams?: Record<string, unknown>;
   /** The actual course hits returned for this step. */
   hits?: CourseRetrievalHit[];
 }
@@ -579,12 +735,16 @@ export interface PromptDebugEntry {
 export interface AIPathwaysResponseModel {
   /** Unique ID for the generation session. */
   requestId: string;
+  /** Tags used in Xpert requests for RAG control. */
+  tags?: string[];
+  /** Discovery data from Xpert RAG retrieval. */
+  discovery?: any;
+  /** Whether discovery RAG was used during the request. */
+  wasDiscoveryUsed?: boolean;
   /** Ordered list of prompt interception events. */
   promptDebug?: PromptDebugEntry[];
   /** Metrics and data for each stage of the generation pipeline. */
   stages: {
-    /** Initial loading of taxonomy facets. */
-    facetBootstrap: StageMetrics;
     /** Conversion of natural language input to structured intent. */
     intentExtraction: StageMetrics & {
       systemPrompt: string;
@@ -592,10 +752,13 @@ export interface AIPathwaysResponseModel {
       parsedResponse: any;
       validationErrors: string[];
       repairPromptUsed: boolean;
+      discovery?: any;
+      wasDiscoveryUsed?: boolean;
     };
     /** Search for matching careers in the taxonomy index. */
     careerRetrieval: StageMetrics & {
       resultCount: number;
+      trace?: CareerRetrievalTrace;
     };
     /** Capturing current catalog facets for translation. */
     catalogFacetSnapshot?: StageMetrics & {
@@ -608,6 +771,8 @@ export interface AIPathwaysResponseModel {
     /** AI-driven translation of remaining taxonomy terms. */
     catalogTranslation?: StageMetrics & {
       trace: CatalogTranslationTrace;
+      discovery?: any;
+      wasDiscoveryUsed?: boolean;
     };
     /** Progressive search logic to find relevant courses. */
     retrievalLadder?: StageMetrics & {
@@ -617,11 +782,21 @@ export interface AIPathwaysResponseModel {
     courseRetrieval: StageMetrics & {
       resultCount: number;
       hits?: CourseRetrievalHit[];
+      winnerStep?: number | null;
+      selectedCourseIds?: string[];
+      selectedCourseTitles?: string[];
+      requestSummary?: {
+        winningQuery?: string;
+        winningFacetFilters?: unknown;
+        winningOptionalFilters?: unknown;
+      };
     };
     /** Final assembly and enrichment of the course pathway. */
     pathwayEnrichment: StageMetrics & {
       systemPrompt: string;
       rawResponse: string;
+      discovery?: any;
+      wasDiscoveryUsed?: boolean;
     };
   };
 }
@@ -629,7 +804,7 @@ export interface AIPathwaysResponseModel {
 /**
  * Represents a single named segment of an AI system prompt.
  */
-export type PromptPartLabel = 'base' | 'facetContext' | 'schema' | 'repair';
+export type PromptPartLabel = 'base' | 'schema' | 'repair' | 'json_instruction';
 
 /**
  * A component part of a structured prompt.
@@ -653,11 +828,13 @@ export interface XpertPromptBundle {
   /** Unique identifier for the bundle instance. */
   id: string;
   /** The pipeline stage this prompt belongs to. */
-  stage: 'intentExtraction' | 'catalogTranslation';
+  stage: 'intentExtraction' | 'catalogTranslation' | 'pathwayEnrichment';
   /** Individual parts composing the prompt. */
   parts: PromptPart[];
   /** The final flattened string sent to the AI. */
   combined: string;
+  /** Optional RAG control tags for the request. */
+  tags?: string[];
 }
 
 /**
@@ -665,9 +842,33 @@ export interface XpertPromptBundle {
  */
 export interface XpertMessage {
   /** The sender's role. */
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'tool';
   /** The message text. */
   content: string;
+}
+
+/**
+ * Request shape for Xpert Platform message requests.
+ */
+export interface XpertMessageRequest {
+  messages: XpertMessage[];
+  systemMessage?: string;
+  conversationId?: string;
+  stream?: boolean;
+  tags?: string[];
+}
+
+/**
+ * The first message object returned by the Xpert `/v1/message` endpoint.
+ * Parsed from `response.data[0]` by `xpertService.sendMessage`.
+ */
+export interface XpertMessageResponse {
+  /** The AI-generated response text (typically JSON for structured calls). */
+  content: string;
+  /** The Xpert role identifier for this message (e.g., 'assistant'). */
+  role: string;
+  /** Discovery documents retrieved by Xpert RAG, if RAG was active for this call. */
+  discovery?: any;
 }
 
 /**

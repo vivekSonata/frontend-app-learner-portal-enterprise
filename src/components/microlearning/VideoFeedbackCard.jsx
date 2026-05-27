@@ -7,7 +7,7 @@ import { FormattedMessage, useIntl } from '@edx/frontend-platform/i18n';
 import {
   ThumbUpOutline, ThumbUp, ThumbDownOffAlt, ThumbDownAlt, Close,
 } from '@openedx/paragon/icons';
-import { sendEnterpriseTrackEvent } from '@edx/frontend-enterprise-utils';
+import { sendEnterpriseTrackEvent } from '@2uinc/frontend-enterprise-utils';
 import { VIDEO_FEEDBACK_CARD, VIDEO_FEEDBACK_SUBMITTED_LOCALSTORAGE_KEY } from './constants';
 
 const VideoFeedbackCard = ({

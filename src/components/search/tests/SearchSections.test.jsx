@@ -1,6 +1,6 @@
 import { screen } from '@testing-library/react';
 import { IntlProvider } from '@edx/frontend-platform/i18n';
-import { SearchContext } from '@edx/frontend-enterprise-catalog-search';
+import { SearchContext } from '@2uinc/frontend-enterprise-catalog-search';
 import { AppContext } from '@edx/frontend-platform/react';
 import SearchCourse from '../SearchCourse';
 import '../../skills-quiz/__mocks__/react-instantsearch-dom';

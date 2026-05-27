@@ -1,4 +1,5 @@
 import { AppContext } from '@edx/frontend-platform/react';
+import { IntlProvider } from '@edx/frontend-platform/i18n';
 import {
   screen, render, waitFor,
 } from '@testing-library/react';
@@ -23,7 +24,9 @@ const initialAppState = {
 
 const ProgramFAQWithContext = () => (
   <AppContext.Provider value={initialAppState}>
-    <ProgramFAQ />
+    <IntlProvider locale="en">
+      <ProgramFAQ />
+    </IntlProvider>
   </AppContext.Provider>
 );
 

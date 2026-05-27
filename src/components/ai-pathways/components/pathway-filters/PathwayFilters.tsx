@@ -3,7 +3,6 @@ import {
   Row,
   Col,
   Form,
-  SearchField,
   Button,
 } from '@openedx/paragon';
 import { Close } from '@openedx/paragon/icons';
@@ -50,17 +49,16 @@ export const PathwayFilters = ({
   <div className="pathway-filters mb-4 p-3 bg-light rounded shadow-sm">
     <Row className="align-items-end">
       <Col xs={12} lg={4} className="mb-3 mb-lg-0">
-        <SearchField
-          label="Search Courses"
-          placeholder="Filter by title or reasoning..."
-          value={searchQuery}
-          onChange={onSearchChange}
-          onClear={() => onSearchChange('')}
-          onSubmit={(e) => {
-            e.preventDefault();
-            onSearchChange(searchQuery);
-          }}
-        />
+        <Form.Group controlId="searchQuery">
+          <Form.Label className="small font-weight-bold">Search Courses</Form.Label>
+          <Form.Control
+            type="text"
+            size="sm"
+            value={searchQuery}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => onSearchChange(e.target.value)}
+            placeholder="Filter by title or reasoning..."
+          />
+        </Form.Group>
       </Col>
 
       <Col xs={6} md={3} lg={2} className="mb-3 mb-md-0">
@@ -90,7 +88,7 @@ export const PathwayFilters = ({
             onChange={(e: React.ChangeEvent<HTMLSelectElement>) => onLevelChange(e.target.value)}
           >
             <option value="all">All Levels</option>
-            <option value="Beginner">Beginner</option>
+            <option value="Introductory">Introductory</option>
             <option value="Intermediate">Intermediate</option>
             <option value="Advanced">Advanced</option>
           </Form.Control>

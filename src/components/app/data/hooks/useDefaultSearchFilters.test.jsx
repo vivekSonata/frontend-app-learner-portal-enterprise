@@ -1,5 +1,5 @@
 import { renderHook } from '@testing-library/react';
-import { SearchContext, SHOW_ALL_NAME } from '@edx/frontend-enterprise-catalog-search';
+import { SearchContext, SHOW_ALL_NAME } from '@2uinc/frontend-enterprise-catalog-search';
 import { AppContext } from '@edx/frontend-platform/react';
 import { logInfo } from '@edx/frontend-platform/logging';
 import useDefaultSearchFilters from './useDefaultSearchFilters';
@@ -25,8 +25,8 @@ jest.mock('../../../../config', () => ({
   },
 }));
 
-jest.mock('@edx/frontend-enterprise-catalog-search', () => ({
-  ...jest.requireActual('@edx/frontend-enterprise-catalog-search'),
+jest.mock('@2uinc/frontend-enterprise-catalog-search', () => ({
+  ...jest.requireActual('@2uinc/frontend-enterprise-catalog-search'),
   setRefinementAction: jest.fn(() => ({ key: 'SET_REFINEMENT' })),
 }));
 

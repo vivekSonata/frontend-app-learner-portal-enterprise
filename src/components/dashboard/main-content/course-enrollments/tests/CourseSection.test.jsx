@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/extend-expect';
 import { render, screen } from '@testing-library/react';
-import * as frontendEnterpriseUtils from '@edx/frontend-enterprise-utils';
+import * as frontendEnterpriseUtils from '@2uinc/frontend-enterprise-utils';
 
 import userEvent from '@testing-library/user-event';
 import CourseSection from '../CourseSection';
@@ -9,7 +9,7 @@ import { COURSE_STATUSES } from '../../../../../constants';
 import { useEnterpriseCustomer } from '../../../../app/data';
 import { enterpriseCustomerFactory } from '../../../../app/data/services/data/__factories__';
 
-jest.mock('@edx/frontend-enterprise-utils');
+jest.mock('@2uinc/frontend-enterprise-utils');
 jest.mock('../course-cards', () => ({
   __esModule: true,
   InProgressCourseCard: () => '<InProgressCourseCard />',

@@ -2,7 +2,7 @@ import '@testing-library/jest-dom/extend-expect';
 import { screen } from '@testing-library/react';
 import { AppContext } from '@edx/frontend-platform/react';
 import { IntlProvider } from '@edx/frontend-platform/i18n';
-import { SearchData } from '@edx/frontend-enterprise-catalog-search';
+import { SearchData } from '@2uinc/frontend-enterprise-catalog-search';
 import { SkillsContextProvider } from '../../skills-quiz/SkillsContextProvider';
 import { renderWithRouter } from '../../../utils/tests';
 import SkillsQuizV2 from '../SkillsQuiz';
@@ -18,8 +18,8 @@ jest.mock('react-router-dom', () => ({
   useNavigate: jest.fn(),
 }));
 
-jest.mock('@edx/frontend-enterprise-utils', () => ({
-  ...jest.requireActual('@edx/frontend-enterprise-utils'),
+jest.mock('@2uinc/frontend-enterprise-utils', () => ({
+  ...jest.requireActual('@2uinc/frontend-enterprise-utils'),
   sendEnterpriseTrackEvent: jest.fn(),
 }));
 

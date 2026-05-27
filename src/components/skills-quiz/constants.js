@@ -14,11 +14,8 @@ export const INDUSTRY_ATTRIBUTE_NAME = 'industry_names';
 
 export const INDUSTRY_FACET = {
   attribute: INDUSTRY_ATTRIBUTE_NAME,
-  title: 'Industry I belong to',
   facetValueType: 'single-item',
   typeaheadOptions: {
-    placeholder: 'Find a an industry...',
-    ariaLabel: 'Type to find an industry',
     minLength: 3,
   },
 };

@@ -1,4 +1,5 @@
 import { AppContext } from '@edx/frontend-platform/react';
+import { IntlProvider } from '@edx/frontend-platform/i18n';
 import { screen, render } from '@testing-library/react';
 import '@testing-library/jest-dom/extend-expect';
 
@@ -20,7 +21,9 @@ const initialAppState = {
 
 const ProgramMainContentWrapper = () => (
   <AppContext.Provider value={initialAppState}>
-    <ProgramMainContent />
+    <IntlProvider locale="en">
+      <ProgramMainContent />
+    </IntlProvider>
   </AppContext.Provider>
 );
 

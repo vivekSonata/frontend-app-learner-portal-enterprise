@@ -2,6 +2,7 @@ import { Helmet } from 'react-helmet';
 import {
   breakpoints, Container, Row, MediaQuery,
 } from '@openedx/paragon';
+import { useIntl } from '@edx/frontend-platform/i18n';
 
 import { MainContent, Sidebar } from '../layout';
 import ProgramHeader from './ProgramHeader';
@@ -17,6 +18,7 @@ import ProgramDataBar from './ProgramDataBar';
 import { useEnterpriseCustomer, useProgramDetails } from '../app/data';
 
 const ProgramPage = () => {
+  const intl = useIntl();
   const { data: enterpriseCustomer } = useEnterpriseCustomer();
   const { data: program } = useProgramDetails();
 
@@ -24,9 +26,9 @@ const ProgramPage = () => {
   if (!program?.catalogContainsProgram) {
     return (
       <NotFoundPage
-        pageTitle={PROGRAM_NOT_FOUND_TITLE}
-        errorHeading={PROGRAM_NOT_FOUND_TITLE}
-        errorMessage={PROGRAM_NOT_FOUND_MESSAGE}
+        pageTitle={intl.formatMessage(PROGRAM_NOT_FOUND_TITLE)}
+        errorHeading={intl.formatMessage(PROGRAM_NOT_FOUND_TITLE)}
+        errorMessage={intl.formatMessage(PROGRAM_NOT_FOUND_MESSAGE)}
       />
     );
   }

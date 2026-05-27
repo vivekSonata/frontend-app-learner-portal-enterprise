@@ -1,6 +1,7 @@
 import { screen } from '@testing-library/react';
 import '@testing-library/jest-dom/extend-expect';
 import userEvent from '@testing-library/user-event';
+import { IntlProvider } from '@edx/frontend-platform/i18n';
 import { AppContext } from '@edx/frontend-platform/react';
 import CustomSubscriptionExpirationModal from '../index';
 import { postUnlinkUserFromEnterprise, useEnterpriseCustomer, useSubscriptions } from '../../app/data';
@@ -18,11 +19,13 @@ const mockEnterpriseCustomer = enterpriseCustomerFactory();
 
 const defaultAppContextValue = { authenticatedUser: mockAuthenticatedUser };
 const CustomSubscriptionExpirationModalWrapper = ({ children, appContextValue = defaultAppContextValue }) => (
-  <AppContext.Provider value={appContextValue}>
-    <CustomSubscriptionExpirationModal>
-      {children}
-    </CustomSubscriptionExpirationModal>
-  </AppContext.Provider>
+  <IntlProvider locale="en">
+    <AppContext.Provider value={appContextValue}>
+      <CustomSubscriptionExpirationModal>
+        {children}
+      </CustomSubscriptionExpirationModal>
+    </AppContext.Provider>
+  </IntlProvider>
 );
 
 describe('<CustomSubscriptionExpirationModal />', () => {

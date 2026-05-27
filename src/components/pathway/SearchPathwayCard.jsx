@@ -7,7 +7,7 @@ import { camelCaseObject } from '@edx/frontend-platform/utils';
 import {
   Badge, Card, Stack, Truncate, useToggle,
 } from '@openedx/paragon';
-import { sendEnterpriseTrackEvent } from '@edx/frontend-enterprise-utils';
+import { sendEnterpriseTrackEvent } from '@2uinc/frontend-enterprise-utils';
 
 import {
   MAX_VISIBLE_SKILLS_PATHWAY,

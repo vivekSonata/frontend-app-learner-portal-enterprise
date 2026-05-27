@@ -1,7 +1,7 @@
 import { generatePath, matchPath, redirect } from 'react-router-dom';
 import { getConfig } from '@edx/frontend-platform';
 import { fetchAuthenticatedUser, getLoginRedirectUrl } from '@edx/frontend-platform/auth';
-import { getProxyLoginUrl } from '@edx/frontend-enterprise-logistration';
+import { getProxyLoginUrl } from '@2uinc/frontend-enterprise-logistration';
 import Cookies from 'universal-cookie';
 import { logError } from '@edx/frontend-platform/logging';
 import dayjs from 'dayjs';
@@ -9,6 +9,7 @@ import {
   activateOrAutoApplySubscriptionLicense,
   addLicenseToSubscriptionLicensesByStatus,
   ALGOLIA_QUERY_CACHE_EPSILON,
+  buildCatalogIndex,
   querySubscriptions,
   resolveBFFQuery,
   safeEnsureQueryDataAcademiesList,
@@ -50,6 +51,7 @@ export async function ensureEnterpriseAppData({
       safeEnsureQueryDataSubscriptions({
         queryClient,
         enterpriseCustomer,
+        enterpriseSlug: enterpriseCustomer.slug,
       })
         .then(async (subscriptionsData) => {
           // Auto-activate the user's subscription license, if applicable.
@@ -94,6 +96,7 @@ export async function ensureEnterpriseAppData({
             const subscriptionsQuery = querySubscriptions(enterpriseCustomer.uuid);
             queryClient.setQueryData(subscriptionsQuery.queryKey, (oldData) => ({
               ...oldData,
+              licensesByCatalog: buildCatalogIndex(updatedSubscriptionLicenses),
               subscriptionLicensesByStatus: updatedLicensesByStatus,
               subscriptionPlan: activatedOrAutoAppliedLicense.subscriptionPlan,
               subscriptionLicense: activatedOrAutoAppliedLicense,
@@ -412,6 +415,7 @@ export const validateAlgoliaValidUntil = async ({
     );
     if (!bffResponse) { return; }
     const { algolia } = bffResponse;
+    if (!algolia) { return; }
     const invalidateQuery = () => queryClient.invalidateQueries({
       queryKey: matchedBFFQuery({ enterpriseSlug }).queryKey,
     });

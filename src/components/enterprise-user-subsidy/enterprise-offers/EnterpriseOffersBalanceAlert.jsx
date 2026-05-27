@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 
 import { Container, Alert, MailtoLink } from '@openedx/paragon';
 import { WarningFilled, Error } from '@openedx/paragon/icons';
-import { sendEnterpriseTrackEvent } from '@edx/frontend-enterprise-utils';
+import { sendEnterpriseTrackEvent } from '@2uinc/frontend-enterprise-utils';
 import { FormattedMessage, defineMessages, useIntl } from '@edx/frontend-platform/i18n';
 import { OFFER_BALANCE_CLICK_EVENT } from './data/constants';
 import { getContactEmail } from '../../../utils/common';

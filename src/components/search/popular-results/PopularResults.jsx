@@ -1,6 +1,6 @@
 import PropTypes from 'prop-types';
 import { connectStateResults } from 'react-instantsearch-dom';
-import { useNbHitsFromSearchResults } from '@edx/frontend-enterprise-catalog-search';
+import { useNbHitsFromSearchResults } from '@2uinc/frontend-enterprise-catalog-search';
 import { Skeleton, CardGrid } from '@openedx/paragon';
 import { v4 as uuidv4 } from 'uuid';
 

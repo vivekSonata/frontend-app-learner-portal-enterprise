@@ -1,4 +1,6 @@
+import PropTypes from 'prop-types';
 import { render } from '@testing-library/react';
+import { IntlProvider, useIntl } from '@edx/frontend-platform/i18n';
 import * as programUtils from '../utils';
 import { PROGRAM_TYPE_MAP, PROGRAM_PACING_MAP, PACING_TYPE_CONTENT } from '../constants';
 import { appendProgramToProgramType } from '../utils';
@@ -20,6 +22,33 @@ const program = {
   ],
   type: PROGRAM_TYPE_MAP.MICROMASTERS,
   weeksToComplete: 3,
+};
+
+const ProgramEffortWithIntl = ({ programData }) => {
+  const intl = useIntl();
+  return <div>{programUtils.getTotalEstimatedEffortInHoursPerWeek(programData, intl)}</div>;
+};
+
+const ProgramDurationWithIntl = ({ programData }) => {
+  const intl = useIntl();
+  return <div>{programUtils.getProgramDuration(programData, intl)}</div>;
+};
+
+ProgramEffortWithIntl.propTypes = {
+  programData: PropTypes.shape({
+    minHoursEffortPerWeek: PropTypes.number,
+    maxHoursEffortPerWeek: PropTypes.number,
+  }).isRequired,
+};
+
+ProgramDurationWithIntl.propTypes = {
+  programData: PropTypes.shape({
+    courses: PropTypes.arrayOf(PropTypes.shape({
+      activeCourseRun: PropTypes.shape({
+        weeksToComplete: PropTypes.number,
+      }),
+    })),
+  }).isRequired,
 };
 
 describe('getProgramPacing', () => {
@@ -50,14 +79,21 @@ describe('getProgramPacing', () => {
 describe('getProgramPacingTypeContent', () => {
   it('when pacing type is self paced', () => {
     const pacingTypeContent = programUtils.getProgramPacingTypeContent(PROGRAM_PACING_MAP.SELF_PACED);
-    const expected = PACING_TYPE_CONTENT.SELF_PACED;
+    const expected = PACING_TYPE_CONTENT.SELF_PACED.defaultMessage;
     expect(pacingTypeContent).toEqual(expected);
   });
 
   it('when pacing type is instructor paced', () => {
     const pacingTypeContent = programUtils.getProgramPacingTypeContent(PROGRAM_PACING_MAP.INSTRUCTOR_PACED);
-    const expected = PACING_TYPE_CONTENT.INSTRUCTOR_PACED;
+    const expected = PACING_TYPE_CONTENT.INSTRUCTOR_PACED.defaultMessage;
     expect(pacingTypeContent).toEqual(expected);
+  });
+});
+
+describe('getVerboseProgramPacing', () => {
+  it('returns undefined for unknown pacing values', () => {
+    const result = programUtils.getVerboseProgramPacing('unknown-pacing');
+    expect(result).toBeUndefined();
   });
 });
 
@@ -179,6 +215,38 @@ describe('getTotalEstimatedEffortInHoursPerWeek', () => {
     };
     const estimatedEffort = programUtils.getTotalEstimatedEffortInHoursPerWeek(programWithMinMaxEffortWeekInfo);
     expect(estimatedEffort).toEqual(`${MIN} - ${MAX} hours per week`);
+  });
+
+  it('returns localized equal effort string when intl is provided', () => {
+    const programWithEqualEffort = {
+      ...program,
+      minHoursEffortPerWeek: 6,
+      maxHoursEffortPerWeek: 6,
+    };
+
+    const { container } = render(
+      <IntlProvider locale="en">
+        <ProgramEffortWithIntl programData={programWithEqualEffort} />
+      </IntlProvider>,
+    );
+
+    expect(container.textContent).toContain('6 hours per week');
+  });
+
+  it('returns localized range effort string when intl is provided', () => {
+    const programWithRangeEffort = {
+      ...program,
+      minHoursEffortPerWeek: 3,
+      maxHoursEffortPerWeek: 8,
+    };
+
+    const { container } = render(
+      <IntlProvider locale="en">
+        <ProgramEffortWithIntl programData={programWithRangeEffort} />
+      </IntlProvider>,
+    );
+
+    expect(container.textContent).toContain('3 - 8 hours per week');
   });
 });
 
@@ -359,22 +427,87 @@ describe('getProgramDuration', () => {
     programDuration = programUtils.getProgramDuration(programWithFiftyTwoWeeksToComplete);
     expect(programDuration).toEqual('1 year 1 month');
   });
+
+  it('returns localized month duration when intl is provided', () => {
+    const programWithTenWeeksToComplete = {
+      courses: [
+        {
+          activeCourseRun: {
+            weeksToComplete: 5,
+          },
+        },
+        {
+          activeCourseRun: {
+            weeksToComplete: 5,
+          },
+        },
+      ],
+    };
+
+    const { container } = render(
+      <IntlProvider locale="en">
+        <ProgramDurationWithIntl programData={programWithTenWeeksToComplete} />
+      </IntlProvider>,
+    );
+
+    expect(container.textContent).toContain('3 months');
+  });
+
+  it('returns localized year duration when intl is provided', () => {
+    const programWithNinetySixWeeksToComplete = {
+      courses: [
+        {
+          activeCourseRun: {
+            weeksToComplete: 96,
+          },
+        },
+      ],
+    };
+
+    const { container } = render(
+      <IntlProvider locale="en">
+        <ProgramDurationWithIntl programData={programWithNinetySixWeeksToComplete} />
+      </IntlProvider>,
+    );
+
+    expect(container.textContent).toContain('2 years');
+  });
+
+  it('returns localized year and month duration when intl is provided', () => {
+    const programWithSeventyWeeksToComplete = {
+      courses: [
+        {
+          activeCourseRun: {
+            weeksToComplete: 70,
+          },
+        },
+      ],
+    };
+
+    const { container } = render(
+      <IntlProvider locale="en">
+        <ProgramDurationWithIntl programData={programWithSeventyWeeksToComplete} />
+      </IntlProvider>,
+    );
+
+    expect(container.textContent).toContain('1 year 6 months');
+  });
 });
 
 describe('appendProgramToProgramType', () => {
   it('tests appendProgramToProgramType returns correct results for MicroMasters', () => {
     expect(render(appendProgramToProgramType('MicroMasters')).baseElement.outerHTML)
-      .toBe('<body><div><span> MicroMasters<markup>®</markup> Program </span></div></body>');
+      .toBe('<body><div><span> MicroMasters<sup>®</sup> Program </span></div></body>');
   });
 
   it('tests appendProgramToProgramType returns correct results for xSeries', () => {
     expect(render(appendProgramToProgramType('xSeries')).baseElement.outerHTML)
-      .toBe('<body><div><span> xSeries<markup>®</markup> Program </span></div></body>');
+      .toBe('<body><div><span> xSeries<sup>®</sup> Program </span></div></body>');
   });
 
   it('tests appendProgramToProgramType returns correct results for MicroBachelors', () => {
     expect(render(appendProgramToProgramType('MicroBachelors')).baseElement.outerHTML)
-      .toBe('<body><div><span> MicroBachelors<markup>®</markup> Program </span></div></body>');
+      .toBe('<body><div><span> MicroBachelors<sup>®</sup> Program </span></div></body>');
   });
 
   it('tests appendProgramToProgramType returns correct results for Masters', () => {

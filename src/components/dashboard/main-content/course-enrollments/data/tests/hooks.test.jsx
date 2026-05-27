@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import * as logger from '@edx/frontend-platform/logging';
 import { AppContext } from '@edx/frontend-platform/react';
-import { sendEnterpriseTrackEventWithDelay } from '@edx/frontend-enterprise-utils';
+import { sendEnterpriseTrackEventWithDelay } from '@2uinc/frontend-enterprise-utils';
 import dayjs from 'dayjs';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
@@ -56,8 +56,8 @@ jest.mock('@edx/frontend-platform/logging', () => ({
   logError: jest.fn(),
   logInfo: jest.fn(),
 }));
-jest.mock('@edx/frontend-enterprise-utils', () => ({
-  ...jest.requireActual('@edx/frontend-enterprise-utils'),
+jest.mock('@2uinc/frontend-enterprise-utils', () => ({
+  ...jest.requireActual('@2uinc/frontend-enterprise-utils'),
   sendEnterpriseTrackEventWithDelay: jest.fn(),
 }));
 jest.mock('../../../../../stateful-enroll/data', () => ({

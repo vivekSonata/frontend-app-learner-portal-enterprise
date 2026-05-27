@@ -6,7 +6,7 @@ import useCourseMetadata from './useCourseMetadata';
 import { queryCanRedeem } from '../queries';
 import useEnterpriseCustomer from './useEnterpriseCustomer';
 import useLateEnrollmentBufferDays from './useLateEnrollmentBufferDays';
-import { determineSubscriptionLicenseApplicable, findCouponCodeForCourse, getCourseRunsForRedemption } from '../utils';
+import { findCouponCodeForCourse, getCourseRunsForRedemption, resolveApplicableSubscriptionLicense } from '../utils';
 import useCourseRunKeyQueryParam from './useCourseRunKeyQueryParam';
 import useRedeemablePolicies from './useRedeemablePolicies';
 import useSubscriptions from './useSubscriptions';
@@ -102,17 +102,29 @@ export default function useCourseRedemptionEligibility() {
   const lateEnrollmentBufferDays = useLateEnrollmentBufferDays();
   const { data: courseMetadata } = useCourseMetadata();
 
+  interface SubscriptionsData {
+    subscriptionLicense?: SubscriptionLicense | null;
+    subscriptionLicenses?: SubscriptionLicense[];
+    licensesByCatalog?: Record<string, SubscriptionLicense[]>;
+  }
+
+  const { data: subscriptionsData } = useSubscriptions();
+
   const {
-    // @ts-expect-error
-    data: { subscriptionLicense },
-  } = useSubscriptions();
+    subscriptionLicense,
+    subscriptionLicenses = [],
+    licensesByCatalog = {},
+  }: Partial<SubscriptionsData> = subscriptionsData ?? {};
 
   const { courseKey } = useParams();
+  if (!courseKey) {
+    throw new Error('courseKey is required but was not found in route params');
+  }
   const {
     data: {
       catalogList: catalogsWithCourse,
     },
-  } = useEnterpriseCustomerContainsContent([courseKey!]);
+  } = useEnterpriseCustomerContainsContent([courseKey]);
 
   const {
     data: {
@@ -121,11 +133,19 @@ export default function useCourseRedemptionEligibility() {
   } = useCouponCodes();
   const applicableCouponCode = findCouponCodeForCourse(couponCodeAssignments, catalogsWithCourse);
 
-  const isSubscriptionLicenseApplicable = determineSubscriptionLicenseApplicable(
-    subscriptionLicense,
+  const applicableSubscriptionLicense = (resolveApplicableSubscriptionLicense as (args: {
+    subscriptionLicense: SubscriptionLicense | null;
+    subscriptionLicenses: SubscriptionLicense[];
+    licensesByCatalog: Record<string, SubscriptionLicense[]>;
+    catalogsWithCourse: string[];
+  }) => SubscriptionLicense | null)({
+    subscriptionLicense: subscriptionLicense ?? null,
+    subscriptionLicenses,
+    licensesByCatalog,
     catalogsWithCourse,
-  );
-  const hasSubsidyPrioritizedOverLearnerCredit = isSubscriptionLicenseApplicable
+  });
+
+  const hasSubsidyPrioritizedOverLearnerCredit = !!applicableSubscriptionLicense
     || applicableCouponCode?.couponCodeRedemptionCount > 0;
 
   const {

@@ -378,7 +378,7 @@ describe('rootLoader', () => {
 
     await waitFor(() => {
       // Assert that the expected number of queries were made.
-      let expectedQueryCount = 10;
+      let expectedQueryCount = 11;
       if (enterpriseSlug !== activeEnterpriseCustomer.slug) {
         if (!(isLinked || isStaffUser)) {
           expectedQueryCount = 2;
@@ -459,6 +459,7 @@ describe('rootLoader', () => {
               },
             ],
           },
+          licensesByCatalog: {},
           subscriptionLicense: {
             ...mockSubscriptionsData.subscriptionLicense,
             status: LICENSE_STATUS.ACTIVATED,

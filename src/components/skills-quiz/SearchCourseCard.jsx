@@ -4,7 +4,7 @@ import {
 import { FormattedMessage } from '@edx/frontend-platform/i18n';
 import PropTypes from 'prop-types';
 import { v4 as uuidv4 } from 'uuid';
-import { SearchContext } from '@edx/frontend-enterprise-catalog-search';
+import { SearchContext } from '@2uinc/frontend-enterprise-catalog-search';
 import { Alert, CardGrid } from '@openedx/paragon';
 import { ZoomOut } from '@openedx/paragon/icons';
 import { camelCaseObject } from '@edx/frontend-platform/utils';

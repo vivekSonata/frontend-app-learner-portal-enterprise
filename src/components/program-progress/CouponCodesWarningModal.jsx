@@ -1,33 +1,36 @@
 import {
   ActionRow, Button, MailtoLink, StandardModal,
 } from '@openedx/paragon';
-import { FormattedMessage } from '@edx/frontend-platform/i18n';
+import { FormattedMessage, useIntl } from '@edx/frontend-platform/i18n';
 import PropTypes from 'prop-types';
 import { useEnterpriseCustomer } from '../app/data';
 
 const CouponCodesWarningModal = ({ isCouponCodeWarningModalOpen, onCouponCodeWarningModalClose, couponCodesCount }) => {
+  const intl = useIntl();
   const { data: enterpriseCustomer } = useEnterpriseCustomer();
   if (isCouponCodeWarningModalOpen === false) { return null; }
-  const renderTitle = () => (
-    <h3>
-      <FormattedMessage
-        id="enterprise.coupon.codes.warning.modal.title"
-        defaultMessage="You do not have enough codes to complete the program"
-        description="Title for the coupon codes warning modal."
-      />
-    </h3>
-  );
+  const modalTitle = intl.formatMessage({
+    id: 'enterprise.coupon.codes.warning.modal.title',
+    defaultMessage: 'You do not have enough codes to complete the program',
+    description: 'Title for the coupon codes warning modal.',
+  });
 
   return (
     <StandardModal
-      title={renderTitle()}
+      title={modalTitle}
       isOpen={isCouponCodeWarningModalOpen}
       hasCloseButton={false}
       isOverflowVisible={false}
       onClose={onCouponCodeWarningModalClose}
       footerNode={(
         <ActionRow>
-          <Button onClick={onCouponCodeWarningModalClose}>OK</Button>
+          <Button onClick={onCouponCodeWarningModalClose}>
+            <FormattedMessage
+              id="enterprise.coupon.codes.warning.modal.acknowledge"
+              defaultMessage="OK"
+              description="Confirmation button label for the coupon codes warning modal."
+            />
+          </Button>
         </ActionRow>
       )}
     >

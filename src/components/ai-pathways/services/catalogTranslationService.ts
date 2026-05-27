@@ -1,199 +1,232 @@
 import {
-  CatalogFacetSnapshot,
   RulesFirstCandidates,
   CatalogTranslation,
   CatalogSearchIntent,
   SkillProvenance,
   CatalogTranslationTrace,
+  LearnerLevel,
+  CatalogSkillMatch,
 } from '../types';
-
-/** Maximum number of hard skill filters to include in an Algolia request. */
-const MAX_STRICT_SKILLS = 8;
-/** Maximum number of optional boosting filters to include. */
-const MAX_BOOST_SKILLS = 12;
-
-/**
- * Validates that a list of values exists in the provided catalog facet snapshot.
- * Ensures that terms suggested by the AI are actually present in the learner's catalog.
- *
- * @param values The values to validate.
- * @param allowedValues A set of all valid values from the snapshot for O(1) lookup.
- * @returns An array of only the valid values.
- */
-export const validateAllowedFacetValues = (
-  values: string[],
-  allowedValues: Set<string>,
-): string[] => values.filter((val) => allowedValues.has(val));
+import type { RetrievalSkillTier } from '../types/translationContracts';
+import {
+  MAX_STRICT_SKILLS,
+  MAX_BOOST_SKILLS,
+  BEGINNER_MAX_STRICT_SKILLS,
+} from '../constants';
 
 /**
- * Caps the number of filters to a reasonable maximum to maintain search performance.
+ * Service for consolidating deterministic taxonomy-to-catalog mapping results.
  *
- * @param skills The skills to cap.
- * @param limit The maximum number of skills allowed.
- * @returns A capped array of skills.
- */
-export const capSkillCounts = (skills: string[], limit: number): string[] => skills.slice(0, limit);
-
-/**
- * Service for orchestrating the hybrid translation of taxonomy terms to catalog facets.
+ * Pipeline context: This is the 'catalogTranslation' stage. It takes the output
+ * of the rules-first deterministic mapping and produces a CatalogTranslation
+ * ready for the hybrid retrieval ladder.
  *
- * Pipeline context: This is the 'catalogTranslation' stage. It takes professional
- * roles and skills from the taxonomy index and maps them to valid search filters
- * in the specific course catalog assigned to the learner.
+ * With tiering:
+ *   strictSkillFilters = broad_anchor skills → hard facetFilters
+ *   boostSkillFilters  = role_differentiator + narrow_signal → optionalFilters
+ *   query              = broadTerms from intentRequiredSkills (or broad anchors)
  *
- * It follows a hybrid strategy:
- * 1. Deterministic: Uses exact matches and curated aliases first (Reliable).
- * 2. Probabilistic: Uses AI (Xpert) to map remaining unmatched terms (Flexible).
- * 3. Grounding: Validates all final terms against a real-time facet snapshot (Accurate).
+ * Without tiering (legacy / no tier metadata):
+ *   falls back to original behavior (all matches → strictSkillFilters)
  */
 export const catalogTranslationService = {
   /**
-   * Processes the full translation flow, merging rules-first and AI results.
+   * Converts rules-first mapping candidates into a fully grounded `CatalogTranslation`
+   * ready for the course retrieval ladder.
    *
-   * @param careerTitle The professional title chosen by the user.
-   * @param facetSnapshot The authoritative list of valid catalog facets.
-   * @param rulesFirst The results from the deterministic mapping stage.
-   * @param xpertRawResponse The raw AI response string (if the AI stage was triggered).
-   * @param xpertDebug Optional performance and debug metrics from the AI stage.
-   * @returns A result object containing the final consolidated translation and a trace.
+   * The translation strategy depends on what tiering metadata is available:
+   * - **Hybrid-broad** (primary): broad_anchor skills → `strictSkillFilters` (facetFilters);
+   *   role_differentiator + narrow_signal → `boostSkillFilters` (optionalFilters).
+   * - **Strict-only** (legacy): no tier metadata present — all matches go to `strictSkillFilters`.
+   * - **Promote** (fallback): only role_differentiators/narrow_signals available — up to 2
+   *   are promoted to strict to guarantee some facet-based recall.
+   *
+   * The query is derived from `intentRequiredSkills` when available, otherwise from the
+   * broad anchor catalog names, falling back to the career title.
+   *
+   * @param careerTitle The selected career title; used as a text-fallback query.
+   * @param rulesFirst The output of `catalogTranslationRules.translateTaxonomyToCatalog`.
+   * @param options Optional learner level (controls strict skill caps) and intent required skills
+   *   (used to build the primary query string).
+   * @returns A CatalogTranslation for retrieval and a CatalogTranslationTrace for debugging.
    */
   processTranslation(
     careerTitle: string,
-    facetSnapshot: CatalogFacetSnapshot,
     rulesFirst: RulesFirstCandidates,
-    xpertRawResponse?: string,
-    xpertDebug?: { systemPrompt: string; rawResponse: string; durationMs: number; success: boolean },
+    options: { learnerLevel?: LearnerLevel; intentRequiredSkills?: string[] } = {},
   ): { translation: CatalogTranslation; trace: CatalogTranslationTrace } {
-    const validCatalogValues = this.buildValidFacetSet(facetSnapshot);
+    const allMatches: CatalogSkillMatch[] = [
+      ...rulesFirst.exactSkillFilters,
+      ...rulesFirst.aliasSkillFilters,
+    ];
 
-    // 1. Initialize intent from deterministic rules-first matches.
-    let finalIntent: CatalogSearchIntent = {
-      query: careerTitle,
-      queryAlternates: [],
-      strictSkills: [...rulesFirst.exactMatches, ...rulesFirst.aliasMatches],
-      boostSkills: [],
-      subjectHints: [],
-      droppedTaxonomySkills: [],
-    };
+    const broadAnchors = allMatches
+      .filter((m) => m.tier === 'broad_anchor')
+      .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
 
-    let xpertProvenance: SkillProvenance[] = [];
+    const boosters = allMatches
+      .filter((m) => m.tier === 'role_differentiator' || m.tier === 'narrow_signal')
+      .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
 
-    // 2. Parse and ground the AI-suggested terms (if applicable).
-    if (xpertRawResponse) {
-      try {
-        const xpertData = this.parseXpertJson(xpertRawResponse);
-        if (xpertData) {
-          // Grounding: Discard any values suggested by the AI that aren't in the snapshot.
-          const groundedStrict = validateAllowedFacetValues(xpertData.strictSkills || [], validCatalogValues);
-          const groundedBoost = validateAllowedFacetValues(xpertData.boostSkills || [], validCatalogValues);
-          const groundedSubjects = validateAllowedFacetValues(xpertData.subjectHints || [], validCatalogValues);
+    // Legacy path: no tier info attached (e.g., old test data or missing skillDetails)
+    const noTierMatches = allMatches.filter((m) => !m.tier);
 
-          finalIntent = {
-            query: xpertData.query || finalIntent.query,
-            queryAlternates: xpertData.queryAlternates || [],
-            strictSkills: Array.from(new Set([...finalIntent.strictSkills, ...groundedStrict])),
-            boostSkills: groundedBoost,
-            subjectHints: groundedSubjects,
-            droppedTaxonomySkills: Array.from(new Set([...(xpertData.droppedTaxonomySkills || [])])),
-          };
+    const maxStrict = options.learnerLevel === 'introductory' ? BEGINNER_MAX_STRICT_SKILLS : MAX_STRICT_SKILLS;
 
-          xpertProvenance = xpertData.skillProvenance || [];
-        }
-      } catch {
-        // AI parse failed: the pipeline continues using only deterministic results.
-      }
+    let strictSkillFilters: CatalogSkillMatch[];
+    let boostSkillFilters: CatalogSkillMatch[];
+
+    if (broadAnchors.length > 0) {
+      strictSkillFilters = broadAnchors.slice(0, maxStrict);
+      boostSkillFilters = boosters.slice(0, MAX_BOOST_SKILLS);
+    } else if (noTierMatches.length > 0) {
+      // Legacy: preserve old behavior when no tiering info is present
+      strictSkillFilters = noTierMatches.slice(0, maxStrict);
+      boostSkillFilters = [];
+    } else {
+      // Only role_differentiators/narrow_signals available — allow up to 2 into strict
+      const roleStrict = options.learnerLevel === 'introductory'
+        ? boosters.filter((m) => m.tier === 'role_differentiator').slice(0, 2)
+        : boosters.slice(0, 2);
+      strictSkillFilters = roleStrict;
+      boostSkillFilters = boosters.slice(roleStrict.length, roleStrict.length + MAX_BOOST_SKILLS);
     }
 
-    // 3. Apply safety caps to filter counts.
-    finalIntent.strictSkills = capSkillCounts(finalIntent.strictSkills, MAX_STRICT_SKILLS);
-    finalIntent.boostSkills = capSkillCounts(finalIntent.boostSkills, MAX_BOOST_SKILLS);
+    // Build query from broad required skills or career title
+    const broadTerms = options.intentRequiredSkills?.length
+      ? options.intentRequiredSkills.slice(0, 3).map((s) => s.toLowerCase()).join(' ')
+      : strictSkillFilters.slice(0, 3).map((f) => f.catalogSkill.toLowerCase()).join(' ');
+    const query = broadTerms || careerTitle;
+    const queryAlternates = query !== careerTitle ? [careerTitle] : [];
 
-    // 4. Construct the consolidated mapping history.
-    const skillProvenance = this.buildSkillProvenance(rulesFirst, xpertProvenance);
+    const hasMappedFacets = strictSkillFilters.length > 0 || boostSkillFilters.length > 0;
+
+    let courseSearchMode: CatalogTranslationTrace['courseSearchMode'];
+    if (strictSkillFilters.length > 0 && boostSkillFilters.length > 0) {
+      courseSearchMode = 'hybrid-broad';
+    } else if (strictSkillFilters.length > 0 && boostSkillFilters.length === 0) {
+      courseSearchMode = 'facet-first';
+    } else if (strictSkillFilters.length === 0 && boostSkillFilters.length > 0) {
+      courseSearchMode = 'text-boost';
+    } else {
+      courseSearchMode = 'text-fallback';
+    }
+
+    const finalIntent: CatalogSearchIntent = {
+      query: hasMappedFacets ? query : careerTitle,
+      queryAlternates: hasMappedFacets ? queryAlternates : [],
+      strictSkillFilters,
+      boostSkillFilters,
+      droppedTaxonomySkills: [...rulesFirst.unmatched],
+    };
+
+    const skillProvenance = this.buildSkillProvenance(rulesFirst);
+
+    const totalInputSkills = rulesFirst.exactSkillFilters.length
+      + rulesFirst.aliasSkillFilters.length
+      + rulesFirst.unmatched.length;
+
+    let strictSelectionReason: string;
+    if (broadAnchors.length > 0) {
+      strictSelectionReason = 'Broad anchor skills selected for stable catalog recall.';
+    } else if (noTierMatches.length > 0) {
+      strictSelectionReason = 'Legacy path: all matches used as strict filters (no tier metadata).';
+    } else {
+      strictSelectionReason = 'Role differentiators promoted to strict (no broad anchors available).';
+    }
+
+    const boostSelectionReason = boostSkillFilters.length > 0
+      ? 'Role differentiators and narrow signals retained as optional boosts.'
+      : 'No boost signals available.';
+
+    const tierCounts = allMatches.reduce((acc, m) => {
+      if (m.tier) {
+        acc[m.tier] = (acc[m.tier] ?? 0) + 1;
+      }
+      return acc;
+    }, {} as Partial<Record<RetrievalSkillTier, number>>);
+
+    let querySource: CatalogTranslationTrace['querySource'];
+    if (options.intentRequiredSkills?.length) {
+      querySource = 'intent_required';
+    } else if (strictSkillFilters.length > 0) {
+      querySource = 'strict_filters';
+    } else {
+      querySource = 'career_title';
+    }
 
     const trace: CatalogTranslationTrace = {
       query: finalIntent.query,
       queryAlternates: finalIntent.queryAlternates,
-      strictSkillCount: finalIntent.strictSkills.length,
-      boostSkillCount: finalIntent.boostSkills.length,
-      subjectHintCount: finalIntent.subjectHints.length,
+      strictSkillCount: strictSkillFilters.length,
+      boostSkillCount: boostSkillFilters.length,
       droppedSkillCount: finalIntent.droppedTaxonomySkills.length,
-      strictSkills: finalIntent.strictSkills,
-      boostSkills: finalIntent.boostSkills,
-      subjectHints: finalIntent.subjectHints,
-      xpertUsed: !!xpertRawResponse,
-      xpertSystemPrompt: xpertDebug?.systemPrompt,
-      xpertRawResponse: xpertDebug?.rawResponse,
-      xpertDurationMs: xpertDebug?.durationMs,
-      xpertSuccess: xpertDebug?.success,
+      strictSkills: strictSkillFilters.map((f) => f.catalogSkill),
+      boostSkills: boostSkillFilters.map((f) => f.catalogSkill),
+      strictSkillFilters,
+      boostSkillFilters,
+      courseSearchMode,
+      facetMatchCount: allMatches.length,
+      facetMatchRate: totalInputSkills > 0
+        ? Math.round((allMatches.length / totalInputSkills) * 100) / 100
+        : 0,
+      strictSelectionReason,
+      boostSelectionReason,
+      droppedTaxonomySkills: [...rulesFirst.unmatched],
+      tierCounts,
+      querySource,
+      learnerLevel: options.learnerLevel,
     };
 
     const translation: CatalogTranslation = {
       ...finalIntent,
       skillProvenance,
-      algoliaPrimaryRequest: {},
-      algoliaFallbackRequests: [],
+      learnerLevel: options.learnerLevel,
     };
 
     return { translation, trace };
   },
 
   /**
-   * Flattens the catalog facet snapshot into a single set for fast lookup.
+   * Builds a flat per-skill audit trail from all three outcome buckets of a rules-first
+   * mapping run: exact matches, alias matches, and unmatched skills.
    *
-   * @param facetSnapshot The structured facet data from Algolia.
-   * @returns A set containing all valid skill names and subjects.
-   */
-  buildValidFacetSet(facetSnapshot: CatalogFacetSnapshot): Set<string> {
-    const valid = new Set<string>();
-    facetSnapshot.skill_names.forEach((s) => valid.add(s));
-    facetSnapshot['skills.name'].forEach((s) => valid.add(s));
-    facetSnapshot.subjects.forEach((s) => valid.add(s));
-    return valid;
-  },
-
-  /**
-   * Safely parses the AI's JSON response, handling potential markdown markers.
+   * Each entry records how a taxonomy skill was resolved to a catalog term (or not),
+   * preserving both the source name and the Algolia field it was found in. This provenance
+   * array is attached to the `CatalogTranslation` and surfaced in the DebugConsole
+   * "Rules-First Mapping" section so every skill's fate is visible without parsing raw data.
    *
-   * @param raw The raw string from Xpert.
-   * @returns A parsed object or null if parsing fails.
+   * @param rulesFirst The output of `catalogTranslationRules.translateTaxonomyToCatalog`,
+   *   containing `exactSkillFilters`, `aliasSkillFilters`, and `unmatched` arrays.
+   * @returns An array of `SkillProvenance` entries — one per input skill — covering
+   *   all exact, alias, and unmatched outcomes.
    */
-  parseXpertJson(raw: string): any {
-    let cleaned = raw.trim();
-    if (cleaned.startsWith('```json')) {
-      cleaned = cleaned.replace(/^```json/, '').replace(/```$/, '').trim();
-    }
-    try {
-      return JSON.parse(cleaned);
-    } catch (e) {
-      return null;
-    }
-  },
-
-  /**
-   * Merges deterministic and AI-driven mapping events into a single provenance list.
-   *
-   * @param rulesFirst History of exact and alias matches.
-   * @param xpertProvenance History of AI-driven matches.
-   * @returns A deduplicated list of skill provenance entries.
-   */
-  buildSkillProvenance(rulesFirst: RulesFirstCandidates, xpertProvenance: SkillProvenance[]): SkillProvenance[] {
+  buildSkillProvenance(rulesFirst: RulesFirstCandidates): SkillProvenance[] {
     const provenance: SkillProvenance[] = [];
 
-    // Process deterministic matches.
-    rulesFirst.exactMatches.forEach((match) => {
-      provenance.push({ taxonomySkill: match, catalogMatch: match, matchMethod: 'exact' });
+    rulesFirst.exactSkillFilters.forEach((match) => {
+      provenance.push({
+        taxonomySkill: match.taxonomySkill,
+        catalogMatch: match.catalogSkill,
+        catalogField: match.catalogField,
+        matchMethod: 'exact',
+      });
     });
 
-    rulesFirst.aliasMatches.forEach((match) => {
-      provenance.push({ taxonomySkill: match, catalogMatch: match, matchMethod: 'alias' });
+    rulesFirst.aliasSkillFilters.forEach((match) => {
+      provenance.push({
+        taxonomySkill: match.taxonomySkill,
+        catalogMatch: match.catalogSkill,
+        catalogField: match.catalogField,
+        matchMethod: 'alias',
+      });
     });
 
-    // Merge AI mapping data, avoiding duplication of existing matches.
-    xpertProvenance.forEach((xp) => {
-      if (!provenance.some((p) => p.taxonomySkill === xp.taxonomySkill)) {
-        provenance.push(xp);
-      }
+    rulesFirst.unmatched.forEach((skill) => {
+      provenance.push({
+        taxonomySkill: skill,
+        matchMethod: 'none',
+      });
     });
 
     return provenance;

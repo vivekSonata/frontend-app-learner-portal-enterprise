@@ -2541,6 +2541,10 @@ export interface components {
       subscription_plan?: components["schemas"]["SubscriptionPlan"] | null;
       /** @default false */
       show_expiration_notifications?: boolean;
+      /** @description Map of catalog UUID to list of subscription licenses covering that catalog. */
+      licenses_by_catalog?: Record<string, components["schemas"]["SubscriptionLicense"][]>;
+      /** @description Schema version for the subscription licenses payload ('v1' or 'v2'). */
+      license_schema_version?: string;
     };
     /** @description Response serializer representing aggregates about the policy and related objects. */
     SubsidyAccessPolicyAggregates: {

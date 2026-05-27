@@ -6,7 +6,7 @@ import {
 import { Edit } from '@openedx/paragon/icons';
 import { ErrorPage } from '@edx/frontend-platform/react';
 import { FormattedMessage } from '@edx/frontend-platform/i18n';
-import { sendEnterpriseTrackEvent } from '@edx/frontend-enterprise-utils';
+import { sendEnterpriseTrackEvent } from '@2uinc/frontend-enterprise-utils';
 
 import { retrieveErrorMessageForDisplay, useEnterpriseCustomer, useLearnerSkillLevels } from '../app/data';
 import CategoryCard from './CategoryCard';

@@ -1,99 +1,303 @@
-import { SearchIndex } from 'algoliasearch/lite';
 import { courseRetrievalService } from '../courseRetrieval';
 import { CatalogTranslation } from '../../types';
 
-describe('courseRetrievalService', () => {
-  const mockIndex = {
-    search: jest.fn(),
-  } as unknown as SearchIndex;
+const mockSearch = jest.fn();
+const mockIndex = { search: mockSearch } as any;
 
-  const mockTranslation: CatalogTranslation = {
-    query: 'Software Engineer',
-    queryAlternates: ['Web Developer', 'Programmer'],
-    strictSkills: ['Python', 'SQL'],
-    boostSkills: ['Docker'],
-    subjectHints: ['Computer Science'],
+describe('courseRetrievalService', () => {
+  /** Hybrid-broad mode: broad anchors in strict, narrow signals in boost. */
+  const hybridBroadTranslation: CatalogTranslation = {
+    query: 'cloud computing devops',
+    queryAlternates: ['Full Stack Engineer'],
+    strictSkillFilters: [
+      {
+        taxonomySkill: 'Cloud Computing',
+        catalogSkill: 'Cloud Computing',
+        catalogField: 'skill_names',
+        matchMethod: 'exact',
+        tier: 'broad_anchor',
+      },
+      {
+        taxonomySkill: 'DevOps',
+        catalogSkill: 'DevOps',
+        catalogField: 'skill_names',
+        matchMethod: 'exact',
+        tier: 'broad_anchor',
+      },
+    ],
+    boostSkillFilters: [
+      {
+        taxonomySkill: 'Python',
+        catalogSkill: 'Python',
+        catalogField: 'skill_names',
+        matchMethod: 'exact',
+        tier: 'narrow_signal',
+      },
+      {
+        taxonomySkill: 'JSON',
+        catalogSkill: 'JSON',
+        catalogField: 'skill_names',
+        matchMethod: 'exact',
+        tier: 'narrow_signal',
+      },
+    ],
     droppedTaxonomySkills: [],
     skillProvenance: [],
-    algoliaPrimaryRequest: {},
-    algoliaFallbackRequests: [],
+  };
+
+  /** Legacy facet-first mode: matched skills, no boost tier info. */
+  const facetFirstTranslation: CatalogTranslation = {
+    query: 'python sql',
+    queryAlternates: ['Software Engineer'],
+    strictSkillFilters: [
+      {
+        taxonomySkill: 'Python', catalogSkill: 'Python', catalogField: 'skill_names', matchMethod: 'exact',
+      },
+      {
+        taxonomySkill: 'SQL', catalogSkill: 'SQL', catalogField: 'skill_names', matchMethod: 'exact',
+      },
+    ],
+    boostSkillFilters: [],
+    droppedTaxonomySkills: [],
+    skillProvenance: [],
+  };
+
+  /** Text-fallback mode: no skills mapped, query is the career title. */
+  const textFallbackTranslation: CatalogTranslation = {
+    query: 'Quantum Engineer',
+    queryAlternates: [],
+    strictSkillFilters: [],
+    boostSkillFilters: [],
+    droppedTaxonomySkills: ['ObscureTechA'],
+    skillProvenance: [],
   };
 
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  it('level 1: returns results from strict facet matching if enough results found', async () => {
-    (mockIndex.search as jest.Mock).mockResolvedValueOnce({
-      hits: Array(3).fill({ objectID: 'c', title: 'Course' }),
+  describe('step 1: hybrid broad (facets + boosts)', () => {
+    it('passes broad-anchor skills as facetFilters and boost skills as optionalFilters', async () => {
+      mockSearch.mockResolvedValueOnce({
+        hits: Array(3).fill({ objectID: 'c', title: 'Course' }),
+      });
+
+      await courseRetrievalService.fetchCourses(hybridBroadTranslation, mockIndex);
+
+      expect(mockSearch).toHaveBeenCalledTimes(1);
+      const [queryArg, paramsArg] = mockSearch.mock.calls[0];
+
+      // Non-empty query is used
+      expect(queryArg).toBe('cloud computing devops');
+
+      // Broad anchors appear in facetFilters (as OR group)
+      expect(paramsArg.facetFilters).toEqual(
+        expect.arrayContaining([
+          expect.arrayContaining([
+            'skill_names:"Cloud Computing"',
+            'skill_names:"DevOps"',
+          ]),
+        ]),
+      );
+
+      // Narrow boost skills appear in optionalFilters
+      expect(paramsArg.optionalFilters).toEqual(
+        expect.arrayContaining([
+          'skill_names:"Python"',
+          'skill_names:"JSON"',
+        ]),
+      );
     });
 
-    const { courses } = await courseRetrievalService.fetchCourses(mockIndex, mockTranslation);
+    it('narrow skill (JSON) appears in optionalFilters, NOT in facetFilters skill group', async () => {
+      mockSearch.mockResolvedValueOnce({
+        hits: Array(3).fill({ objectID: 'c', title: 'Course' }),
+      });
 
-    expect(mockIndex.search).toHaveBeenCalledTimes(1);
-    expect(courses).toHaveLength(3);
-  });
+      await courseRetrievalService.fetchCourses(hybridBroadTranslation, mockIndex);
 
-  it('level 2: falls back to boosted optional filters if strict fails', async () => {
-    (mockIndex.search as jest.Mock).mockResolvedValueOnce({ hits: [] });
-    (mockIndex.search as jest.Mock).mockResolvedValueOnce({
-      hits: Array(4).fill({ objectID: 'c', title: 'Boosted Course' }),
+      const [, paramsArg] = mockSearch.mock.calls[0];
+
+      // Flatten all strings inside facetFilters to check JSON is absent
+      const facetFilterStrings = (paramsArg.facetFilters as string[][])
+        .flat()
+        .join(' ');
+      expect(facetFilterStrings).not.toContain('"JSON"');
+
+      // JSON must appear in optionalFilters
+      expect((paramsArg.optionalFilters as string[]).some((f: string) => f.includes('"JSON"'))).toBe(true);
     });
 
-    const { courses } = await courseRetrievalService.fetchCourses(mockIndex, mockTranslation);
-
-    expect(mockIndex.search).toHaveBeenCalledTimes(2);
-    expect(mockIndex.search).toHaveBeenLastCalledWith('Software Engineer', expect.objectContaining({
-      optionalFilters: ['skill_names:"Docker"'],
-    }));
-    expect(courses).toHaveLength(4);
-  });
-
-  it('level 3: falls back to query alternates if boosted fails', async () => {
-    (mockIndex.search as jest.Mock).mockResolvedValueOnce({ hits: [] });
-    (mockIndex.search as jest.Mock).mockResolvedValueOnce({ hits: [] });
-    (mockIndex.search as jest.Mock).mockResolvedValueOnce({ hits: [] });
-    (mockIndex.search as jest.Mock).mockResolvedValueOnce({
-      hits: Array(3).fill({ objectID: 'c', title: 'Alt Course' }),
+    it('returns step-1 results when hit count meets MIN_RESULTS_THRESHOLD (3)', async () => {
+      mockSearch.mockResolvedValueOnce({ hits: Array(3).fill({ objectID: 'c', title: 'Course' }) });
+      const { ladderTrace } = await courseRetrievalService.fetchCourses(hybridBroadTranslation, mockIndex);
+      expect(ladderTrace.winnerStep).toBe(1);
     });
 
-    const { courses } = await courseRetrievalService.fetchCourses(mockIndex, mockTranslation);
+    it('step-1 attempt has searchMode=hybrid-broad, rerankApplied=true, and rerankTrace', async () => {
+      mockSearch.mockResolvedValueOnce({ hits: Array(3).fill({ objectID: 'c1', title: 'Course 1' }) });
+      const { ladderTrace } = await courseRetrievalService.fetchCourses(hybridBroadTranslation, mockIndex);
+      const attempt = ladderTrace.attempts[0];
+      expect(attempt.searchMode).toBe('hybrid-broad');
+      expect(attempt.rerankApplied).toBe(true);
+      expect(attempt.rerankTrace).toBeDefined();
+      expect(attempt.rerankTrace?.inputCount).toBe(3);
+      expect(attempt.strictSkillsUsed).toEqual(
+        expect.arrayContaining(['Cloud Computing', 'DevOps']),
+      );
+      expect(attempt.boostSkillsUsed).toEqual(
+        expect.arrayContaining(['Python', 'JSON']),
+      );
+    });
 
-    expect(mockIndex.search).toHaveBeenCalledTimes(4);
-    expect(courses).toHaveLength(3);
+    it('also works for legacy facet-first data (no boost skills)', async () => {
+      mockSearch.mockResolvedValueOnce({
+        hits: Array(3).fill({ objectID: 'c', title: 'Course' }),
+      });
+
+      await courseRetrievalService.fetchCourses(facetFirstTranslation, mockIndex);
+
+      expect(mockSearch).toHaveBeenCalledTimes(1);
+      const [, paramsArg] = mockSearch.mock.calls[0];
+      expect(paramsArg.facetFilters).toEqual(
+        expect.arrayContaining([
+          expect.arrayContaining(['skill_names:"Python"', 'skill_names:"SQL"']),
+        ]),
+      );
+      // No boost skills → no optionalFilters from skills
+      expect(paramsArg.optionalFilters).toBeUndefined();
+    });
+
+    it('treats introductory learners as matching beginner-level courses during reranking', async () => {
+      mockSearch.mockResolvedValueOnce({
+        hits: [
+          {
+            objectID: 'intermediate-course',
+            title: 'Intermediate Course',
+            level_type: 'Intermediate',
+          },
+          {
+            objectID: 'beginner-course',
+            title: 'Beginner Course',
+            level_type: 'Beginner',
+          },
+          {
+            objectID: 'advanced-course',
+            title: 'Advanced Course',
+            level_type: 'Advanced',
+          },
+        ],
+      });
+
+      const translation = {
+        ...hybridBroadTranslation,
+        learnerLevel: 'introductory',
+      } as CatalogTranslation;
+
+      const { courses, ladderTrace } = await courseRetrievalService.fetchCourses(translation, mockIndex);
+
+      expect(courses[0].id).toBe('beginner-course');
+      expect(ladderTrace.attempts[0].rerankTrace?.courseScores?.[0]).toEqual(
+        expect.objectContaining({
+          objectID: 'beginner-course',
+          levelCompatibility: 'matched',
+        }),
+      );
+    });
   });
 
-  it('level 4: returns scope-only results if all else fails', async () => {
-    (mockIndex.search as jest.Mock).mockResolvedValue({ hits: [] });
-    (mockIndex.search as jest.Mock).mockResolvedValueOnce({ hits: [] }); // 1
-    (mockIndex.search as jest.Mock).mockResolvedValueOnce({ hits: [] }); // 2
-    (mockIndex.search as jest.Mock).mockResolvedValueOnce({ hits: [] }); // 3
-    (mockIndex.search as jest.Mock).mockResolvedValueOnce({ hits: [] }); // 4
-    (mockIndex.search as jest.Mock).mockResolvedValueOnce({ hits: [] }); // 5
-    (mockIndex.search as jest.Mock).mockResolvedValueOnce({
-      hits: [{ objectID: 'fallback', title: 'Fallback Course' }],
-    }); // 6
+  describe('step 2: boosted text fallback', () => {
+    it('uses query + optionalFilters (boost only) with no skill facetFilters when step 1 misses', async () => {
+      mockSearch.mockResolvedValueOnce({ hits: [] }); // step 1: miss
+      mockSearch.mockResolvedValueOnce({ hits: Array(4).fill({ objectID: 'c', title: 'Course' }) }); // step 2: hit
 
-    const { courses } = await courseRetrievalService.fetchCourses(mockIndex, mockTranslation);
+      const { ladderTrace } = await courseRetrievalService.fetchCourses(hybridBroadTranslation, mockIndex);
 
-    expect(courses).toHaveLength(1);
-    expect(courses[0].id).toBe('fallback');
+      expect(mockSearch).toHaveBeenCalledTimes(2);
+      const step2Params = mockSearch.mock.calls[1][1];
+
+      // Query must be present (boosted text uses translation.query)
+      expect(mockSearch.mock.calls[1][0]).toBeTruthy();
+
+      // Boost optionalFilters must be present
+      expect(step2Params.optionalFilters).toEqual(
+        expect.arrayContaining(['skill_names:"Python"', 'skill_names:"JSON"']),
+      );
+
+      // No extra skill-based facetFilters beyond the base scope group
+      const facetFilterStrings = (step2Params.facetFilters as string[][]).flat().join(' ');
+      expect(facetFilterStrings).not.toContain('"Cloud Computing"');
+      expect(facetFilterStrings).not.toContain('"DevOps"');
+
+      expect(ladderTrace.winnerStep).toBe(2);
+      const attempt2 = ladderTrace.attempts[1];
+      expect(attempt2.searchMode).toBe('boosted-text');
+    });
+
+    it('falls to step 2 for legacy data and preserves base facetFilters without optionalFilters', async () => {
+      mockSearch.mockResolvedValueOnce({ hits: [] }); // step 1: miss
+      mockSearch.mockResolvedValueOnce({ hits: Array(4).fill({ objectID: 'c', title: 'Course' }) }); // step 2: hit
+
+      const { ladderTrace } = await courseRetrievalService.fetchCourses(facetFirstTranslation, mockIndex);
+
+      expect(mockSearch).toHaveBeenCalledTimes(2);
+      const step2Params = mockSearch.mock.calls[1][1];
+      expect(step2Params).toHaveProperty('facetFilters'); // base scope facets always present
+      expect(step2Params.optionalFilters).toBeUndefined(); // no boost skills in legacy data
+      expect(ladderTrace.winnerStep).toBe(2);
+    });
   });
 
-  it('handles Algolia errors gracefully', async () => {
-    (mockIndex.search as jest.Mock).mockRejectedValueOnce(new Error('Algolia error'));
-    const { courses } = await courseRetrievalService.fetchCourses(mockIndex, mockTranslation);
-    expect(courses).toEqual([]);
+  describe('step 3: text fallback', () => {
+    it('uses careerTitle from queryAlternates as the text query', async () => {
+      // Step 3 iterates [translation.query, ...queryAlternates] — both 'python sql' and 'Software Engineer'
+      mockSearch.mockResolvedValueOnce({ hits: [] }); // step 1: miss
+      mockSearch.mockResolvedValueOnce({ hits: [] }); // step 2: miss
+      mockSearch.mockResolvedValueOnce({ hits: [] }); // step 3a: 'python sql' miss
+      mockSearch.mockResolvedValueOnce({ hits: Array(3).fill({ objectID: 'c', title: 'Course' }) }); // step 3b: hit
+
+      const { courses, ladderTrace } = await courseRetrievalService.fetchCourses(facetFirstTranslation, mockIndex);
+
+      expect(mockSearch).toHaveBeenCalledTimes(4);
+      // step 3b fires with the queryAlternate (careerTitle)
+      expect(mockSearch.mock.calls[3][0]).toBe('Software Engineer');
+      expect(courses).toHaveLength(3);
+      expect(ladderTrace.winnerStep).toBe(3);
+    });
+
+    it('uses query directly when in text-fallback mode (no skills mapped)', async () => {
+      mockSearch.mockResolvedValueOnce({ hits: Array(3).fill({ objectID: 'c', title: 'Course' }) });
+
+      const { courses } = await courseRetrievalService.fetchCourses(textFallbackTranslation, mockIndex);
+      expect(courses).toHaveLength(3);
+    });
   });
 
-  it('applies scoped facetFilters correctly when falling through to boosted step', async () => {
-    (mockIndex.search as jest.Mock).mockResolvedValueOnce({ hits: [] }); // strict: 0
-    (mockIndex.search as jest.Mock).mockResolvedValueOnce({
-      hits: Array(3).fill({ objectID: 'c', title: 'Course' }),
-    }); // boost: 3
+  describe('step 4: scope-only fallback', () => {
+    it('returns scope-only results when all earlier steps produce too few results', async () => {
+      // facetFirstTranslation: query='python sql', queryAlternates=['Software Engineer']
+      // Step 3 iterates both → 2 search calls before step 4
+      mockSearch
+        .mockResolvedValueOnce({ hits: [] }) // step 1: miss
+        .mockResolvedValueOnce({ hits: [] }) // step 2: miss
+        .mockResolvedValueOnce({ hits: [] }) // step 3a: 'python sql' miss
+        .mockResolvedValueOnce({ hits: [] }) // step 3b: 'Software Engineer' miss
+        .mockResolvedValueOnce({ hits: [{ objectID: 'fallback', title: 'Fallback Course' }] }); // step 4
 
-    await courseRetrievalService.fetchCourses(mockIndex, mockTranslation);
+      const { courses, ladderTrace } = await courseRetrievalService.fetchCourses(facetFirstTranslation, mockIndex);
+      expect(courses[0].id).toBe('fallback');
+      expect(ladderTrace.winnerStep).toBe(4);
+      const step4Attempt = ladderTrace.attempts.find((a) => a.step === 4);
+      expect(step4Attempt?.searchMode).toBe('scope-only');
+    });
+  });
 
-    expect(mockIndex.search).toHaveBeenCalledTimes(2);
+  describe('error handling', () => {
+    it('returns empty courses and null winnerStep on Algolia error', async () => {
+      mockSearch.mockRejectedValueOnce(new Error('Algolia error'));
+      const { courses, ladderTrace } = await courseRetrievalService.fetchCourses(facetFirstTranslation, mockIndex);
+      expect(courses).toEqual([]);
+      expect(ladderTrace.winnerStep).toBeNull();
+    });
   });
 });

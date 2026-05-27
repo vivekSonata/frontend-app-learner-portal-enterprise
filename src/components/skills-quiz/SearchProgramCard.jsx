@@ -11,8 +11,8 @@ import {
   Alert, Badge, Card, CardGrid, Icon, Stack, Truncate,
 } from '@openedx/paragon';
 import { Program, ZoomOut } from '@openedx/paragon/icons';
-import { sendEnterpriseTrackEvent } from '@edx/frontend-enterprise-utils';
-import { SearchContext } from '@edx/frontend-enterprise-catalog-search';
+import { sendEnterpriseTrackEvent } from '@2uinc/frontend-enterprise-utils';
+import { SearchContext } from '@2uinc/frontend-enterprise-catalog-search';
 import cardFallbackImg from '@edx/brand/paragon/images/card-imagecap-fallback.png';
 import { SkillsContext } from './SkillsContextProvider';
 import { getPrimaryPartnerLogo, isDefinedAndNotNull } from '../../utils/common';

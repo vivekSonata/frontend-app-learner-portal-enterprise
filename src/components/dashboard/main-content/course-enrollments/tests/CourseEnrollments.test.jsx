@@ -31,7 +31,7 @@ import { authenticatedUserFactory, enterpriseCustomerFactory } from '../../../..
 import { COURSE_STATUSES } from '../../../../../constants';
 import CourseEnrollmentsContext from '../CourseEnrollmentsContext';
 
-jest.mock('@edx/frontend-enterprise-utils');
+jest.mock('@2uinc/frontend-enterprise-utils');
 
 jest.mock('../course-cards/mark-complete-modal/data/service');
 

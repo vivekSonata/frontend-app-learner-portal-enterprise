@@ -1,4 +1,5 @@
 import { Collapsible, Icon } from '@openedx/paragon';
+import { FormattedMessage } from '@edx/frontend-platform/i18n';
 import { ExpandLess, ExpandMore } from '@openedx/paragon/icons';
 import { useProgramDetails } from '../app/data';
 
@@ -10,7 +11,13 @@ const ProgramFAQ = () => {
 
   return (
     <div className="program-faq col-lg-8 p-2 mb-3 mt-3">
-      <h2 className="program-section-heading">FAQs</h2>
+      <h2 className="program-section-heading">
+        <FormattedMessage
+          id="enterprise.program.faq.heading"
+          defaultMessage="FAQs"
+          description="Heading for the frequently asked questions section on the program detail page"
+        />
+      </h2>
       <div className="faq mb-4">
         {faq.map((q) => (
           <Collapsible

@@ -1,7 +1,7 @@
 import { screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/extend-expect';
 import { AppContext } from '@edx/frontend-platform/react';
-import { SearchContext } from '@edx/frontend-enterprise-catalog-search';
+import { SearchContext } from '@2uinc/frontend-enterprise-catalog-search';
 import { IntlProvider } from '@edx/frontend-platform/i18n';
 import { QueryClientProvider } from '@tanstack/react-query';
 import SearchResults from '../SearchResults';
@@ -48,13 +48,13 @@ jest.mock('../../../config', () => ({
   features: { PROGRAM_TYPE_FACET: true },
 }));
 
-jest.mock('@edx/frontend-enterprise-utils', () => ({
-  ...jest.requireActual('@edx/frontend-enterprise-utils'),
+jest.mock('@2uinc/frontend-enterprise-utils', () => ({
+  ...jest.requireActual('@2uinc/frontend-enterprise-utils'),
   sendEnterpriseTrackEvent: jest.fn(),
 }));
 
-jest.mock('@edx/frontend-enterprise-catalog-search', () => ({
-  ...jest.requireActual('@edx/frontend-enterprise-catalog-search'),
+jest.mock('@2uinc/frontend-enterprise-catalog-search', () => ({
+  ...jest.requireActual('@2uinc/frontend-enterprise-catalog-search'),
   deleteRefinementAction: jest.fn(),
   setRefinementAction: jest.fn(),
   removeFromRefinementArray: jest.fn(),

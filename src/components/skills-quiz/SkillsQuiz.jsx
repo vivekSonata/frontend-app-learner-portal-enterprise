@@ -1,10 +1,10 @@
 import { Helmet } from 'react-helmet';
-import { SearchData } from '@edx/frontend-enterprise-catalog-search';
+import { SearchData } from '@2uinc/frontend-enterprise-catalog-search';
 
 import { Container, Row } from '@openedx/paragon';
 
 import { getConfig } from '@edx/frontend-platform/config';
-import { hasFeatureFlagEnabled } from '@edx/frontend-enterprise-utils';
+import { hasFeatureFlagEnabled } from '@2uinc/frontend-enterprise-utils';
 import { MainContent } from '../layout';
 import SkillsQuizStepper from './SkillsQuizStepper';
 import { SkillsContextProvider } from './SkillsContextProvider';

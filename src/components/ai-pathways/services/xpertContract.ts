@@ -18,7 +18,13 @@ export interface ReasoningResponse {
     /** Personalised reasoning for why this course belongs in the pathway. */
     reasoning: string;
   }>;
+  /** Discovery data from Xpert RAG retrieval. */
+  discovery?: any;
+  /** Whether discovery RAG was used during the request. */
+  wasDiscoveryUsed?: boolean;
 }
+
+const stripJsonFence = (raw: string): string => raw.replace(/```json\n?/, '').replace(/\n?```/, '').trim();
 
 /**
  * Service for enforcing structural and semantic contracts for Xpert AI interactions.
@@ -37,10 +43,7 @@ export const xpertContractService = {
    */
   parseIntent(rawResponse: string): XpertIntent | null {
     try {
-      /**
-       * Strip potential markdown fences (e.g., ```json ... ```) to isolate the raw JSON.
-       */
-      const jsonString = rawResponse.replace(/```json\n?/, '').replace(/\n?```/, '').trim();
+      const jsonString = stripJsonFence(rawResponse);
       const parsed = JSON.parse(jsonString);
       return this.normalizeIntent(parsed);
     } catch {
@@ -83,6 +86,8 @@ export const xpertContractService = {
       learnerLevel: normalizeLevel(raw.learnerLevel),
       timeCommitment: normalizeCommitment(raw.timeCommitment),
       excludeTags: ensureArray(raw.excludeTags),
+      discovery: raw.discovery || null,
+      wasDiscoveryUsed: Boolean(raw.wasDiscoveryUsed),
     };
   },
 
@@ -119,7 +124,7 @@ export const xpertContractService = {
    */
   parseReasoning(rawResponse: string): ReasoningResponse | null {
     try {
-      const jsonString = rawResponse.replace(/```json\n?/, '').replace(/\n?```/, '').trim();
+      const jsonString = stripJsonFence(rawResponse);
       const parsed = JSON.parse(jsonString);
 
       if (!parsed.reasonings || !Array.isArray(parsed.reasonings)) {
@@ -131,6 +136,8 @@ export const xpertContractService = {
           id: String(r.id || ''),
           reasoning: String(r.reasoning || ''),
         })),
+        discovery: parsed.discovery || null,
+        wasDiscoveryUsed: Boolean(parsed.wasDiscoveryUsed),
       };
     } catch {
       return null;

@@ -2,7 +2,7 @@ import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom/extend-expect';
 import { IntlProvider } from '@edx/frontend-platform/i18n';
-import { SearchContext, deleteRefinementAction } from '@edx/frontend-enterprise-catalog-search';
+import { SearchContext, deleteRefinementAction } from '@2uinc/frontend-enterprise-catalog-search';
 import { AppContext } from '@edx/frontend-platform/react';
 
 import { fetchJobDetailsFromAlgolia, patchProfile } from '../data/service';
@@ -15,8 +15,8 @@ jest.mock('../../app/data', () => ({
   useAlgoliaSearch: jest.fn(),
 }));
 // mocks
-jest.mock('@edx/frontend-enterprise-catalog-search', () => ({
-  ...jest.requireActual('@edx/frontend-enterprise-catalog-search'),
+jest.mock('@2uinc/frontend-enterprise-catalog-search', () => ({
+  ...jest.requireActual('@2uinc/frontend-enterprise-catalog-search'),
   deleteRefinementAction: jest.fn(),
 }));
 

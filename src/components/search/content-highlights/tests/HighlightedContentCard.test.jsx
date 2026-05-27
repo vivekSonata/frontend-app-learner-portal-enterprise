@@ -1,6 +1,6 @@
 import { AppContext } from '@edx/frontend-platform/react';
 import { renderHook, screen } from '@testing-library/react';
-import { sendEnterpriseTrackEvent } from '@edx/frontend-enterprise-utils';
+import { sendEnterpriseTrackEvent } from '@2uinc/frontend-enterprise-utils';
 import userEvent from '@testing-library/user-event';
 import HighlightedContentCard from '../HighlightedContentCard';
 import { renderWithRouter } from '../../../../utils/tests';
@@ -24,7 +24,7 @@ const mockHighlightSet = {
   title: mockHighlightSetTitle,
 };
 jest.mock('../data');
-jest.mock('@edx/frontend-enterprise-utils', () => ({
+jest.mock('@2uinc/frontend-enterprise-utils', () => ({
   sendEnterpriseTrackEvent: jest.fn(),
   hasFeatureFlagEnabled: jest.fn().mockReturnValue(false),
 }));

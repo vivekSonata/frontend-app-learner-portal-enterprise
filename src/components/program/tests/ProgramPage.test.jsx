@@ -76,7 +76,7 @@ describe('<Program />', () => {
     renderWithRouterProvider(
       <ProgramPageWrapper />,
     );
-    expect(screen.getByText(PROGRAM_NOT_FOUND_TITLE)).toBeInTheDocument();
-    expect(screen.getByText(PROGRAM_NOT_FOUND_MESSAGE)).toBeInTheDocument();
+    expect(screen.getByText(PROGRAM_NOT_FOUND_TITLE.defaultMessage)).toBeInTheDocument();
+    expect(screen.getByText(PROGRAM_NOT_FOUND_MESSAGE.defaultMessage)).toBeInTheDocument();
   });
 });

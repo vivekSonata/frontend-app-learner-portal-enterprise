@@ -1,7 +1,7 @@
 import { AppContext } from '@edx/frontend-platform/react';
 import { screen, render } from '@testing-library/react';
 import '@testing-library/jest-dom/extend-expect';
-import { SearchContext } from '@edx/frontend-enterprise-catalog-search';
+import { SearchContext } from '@2uinc/frontend-enterprise-catalog-search';
 import SelectedJobSkills from '../SelectedJobSkills';
 
 const SelectedJobSkillsWithContext = ({

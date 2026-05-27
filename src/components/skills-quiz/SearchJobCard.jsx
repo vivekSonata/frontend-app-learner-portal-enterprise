@@ -1,7 +1,7 @@
 import { useContext, useEffect, useMemo } from 'react';
 import { Configure, InstantSearch } from 'react-instantsearch-dom';
 import PropTypes from 'prop-types';
-import { SearchContext } from '@edx/frontend-enterprise-catalog-search';
+import { SearchContext } from '@2uinc/frontend-enterprise-catalog-search';
 import { getConfig } from '@edx/frontend-platform/config';
 import { SkillsContext } from './SkillsContextProvider';
 import JobCardComponentV2 from '../skills-quiz-v2/JobCardComponent';

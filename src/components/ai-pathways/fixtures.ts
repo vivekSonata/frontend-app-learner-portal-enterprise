@@ -20,7 +20,6 @@ export const mockSearchIntent = {
   roles: ['Software Engineer', 'Full Stack Developer'],
   skillsRequired: ['JavaScript', 'React', 'Node.js'],
   skillsPreferred: ['TypeScript', 'SQL'],
-  learnerLevel: 'beginner',
   queryTerms: ['full stack', 'web development'],
   excludeTags: [],
   timeCommitment: 'medium',
@@ -114,7 +113,6 @@ export const mockLearnerProfile: LearnerProfile = {
 export const mockPathwayResponse: AIPathwaysResponseModel = {
   requestId: 'test-request-id',
   stages: {
-    facetBootstrap: { durationMs: 150, success: true },
     intentExtraction: {
       durationMs: 450,
       success: true,

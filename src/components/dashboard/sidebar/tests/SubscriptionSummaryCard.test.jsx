@@ -130,7 +130,7 @@ describe('<SubscriptionSummaryCard />', () => {
     expect(screen.queryByTestId('subscription-status-badge')).toHaveClass(`badge-${SUBSCRIPTION_WARNING_BADGE_VARIANT}`);
     expect(screen.queryByTestId('warning-icon')).toBeInTheDocument();
     await user.click(screen.queryByTestId('warning-icon'));
-    expect(screen.queryByText(SUBSCRIPTION_EXPIRING_MODAL_TITLE)).toBeTruthy();
+    expect(screen.queryByText(SUBSCRIPTION_EXPIRING_MODAL_TITLE.defaultMessage)).toBeTruthy();
   });
   test('License requested notice is displayed when license request active', () => {
     const noSubscriptionPlan = {

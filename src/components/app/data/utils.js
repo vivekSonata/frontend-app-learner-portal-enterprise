@@ -672,9 +672,17 @@ export function getCatalogsForSubsidyRequests({
   return catalogs;
 }
 
+export function getActivatedCurrentSubscriptionLicenses(subscriptionLicenses = []) {
+  return subscriptionLicenses.filter((subscriptionLicense) => (
+    subscriptionLicense?.status === LICENSE_STATUS.ACTIVATED
+    && subscriptionLicense?.subscriptionPlan?.isCurrent
+  ));
+}
+
 export function getSearchCatalogs({
   redeemablePolicies,
   subscriptionLicense,
+  subscriptionLicenses = [],
   couponCodeAssignments,
   currentEnterpriseOffers,
   catalogsForSubsidyRequests,
@@ -686,9 +694,12 @@ export function getSearchCatalogs({
   // enterprise offers, or subscription plan associated with learner's license.
   redeemablePolicies.forEach((policy) => catalogUUIDs.add(policy.catalogUuid));
 
-  if (subscriptionLicense?.subscriptionPlan.isCurrent && subscriptionLicense?.status === LICENSE_STATUS.ACTIVATED) {
-    catalogUUIDs.add(subscriptionLicense.subscriptionPlan.enterpriseCatalogUuid);
-  }
+  const licensesForSearchCatalogs = subscriptionLicenses.length > 0
+    ? subscriptionLicenses
+    : [subscriptionLicense].filter(Boolean);
+  getActivatedCurrentSubscriptionLicenses(licensesForSearchCatalogs).forEach((license) => {
+    catalogUUIDs.add(license.subscriptionPlan.enterpriseCatalogUuid);
+  });
   if (features.ENROLL_WITH_CODES) {
     const availableCouponCodes = couponCodeAssignments.filter(couponCode => couponCode.available);
     availableCouponCodes.forEach((couponCode) => catalogUUIDs.add(couponCode.catalog));
@@ -1073,12 +1084,117 @@ export function findCouponCodeForCourse(couponCodes, catalogList = []) {
   }));
 }
 
-export function determineSubscriptionLicenseApplicable(subscriptionLicense, catalogsWithCourse) {
-  return (
-    subscriptionLicense?.status === LICENSE_STATUS.ACTIVATED
-    && subscriptionLicense?.subscriptionPlan.isCurrent
-    && catalogsWithCourse.includes(subscriptionLicense?.subscriptionPlan.enterpriseCatalogUuid)
-  );
+export function normalizeCatalogUuid(catalogUuid) {
+  return (catalogUuid || '').toString().replace(/-/g, '').toLowerCase();
+}
+
+export function buildCatalogIndex(subscriptionLicenses = []) {
+  const index = {};
+  getActivatedCurrentSubscriptionLicenses(subscriptionLicenses).forEach((license) => {
+    const catalogUuid = license?.subscriptionPlan?.enterpriseCatalogUuid;
+    if (!catalogUuid) {
+      return;
+    }
+    if (!index[catalogUuid]) {
+      index[catalogUuid] = [];
+    }
+    index[catalogUuid].push(license);
+  });
+  return index;
+}
+
+export function getApplicableSubscriptionLicenses(subscriptionLicenses = [], catalogsWithCourse = []) {
+  const normalizedCatalogsWithCourse = new Set(catalogsWithCourse.map(normalizeCatalogUuid));
+  return getActivatedCurrentSubscriptionLicenses(subscriptionLicenses).filter((subscriptionLicense) => (
+    normalizedCatalogsWithCourse.has(normalizeCatalogUuid(subscriptionLicense?.subscriptionPlan?.enterpriseCatalogUuid))
+  ));
+}
+
+export function selectBestLicense(applicableLicenses = []) {
+  if (!applicableLicenses.length) {
+    return null;
+  }
+  if (applicableLicenses.length === 1) {
+    return applicableLicenses[0];
+  }
+
+  // Primary: latest expiration date first (maximizes learner benefit).
+  // Secondary: earliest activation date (longest-held license wins ties).
+  // Tertiary: uuid descending (deterministic).
+  return [...applicableLicenses].sort((a, b) => {
+    const expirationA = a?.subscriptionPlan?.expirationDate || '0000-00-00';
+    const expirationB = b?.subscriptionPlan?.expirationDate || '0000-00-00';
+    const expirationDiff = expirationB.localeCompare(expirationA);
+    if (expirationDiff !== 0) {
+      return expirationDiff;
+    }
+
+    const activationA = a?.activationDate || '9999-12-31';
+    const activationB = b?.activationDate || '9999-12-31';
+    const activationDiff = activationA.localeCompare(activationB);
+    if (activationDiff !== 0) {
+      return activationDiff;
+    }
+
+    const uuidA = a?.uuid || '';
+    const uuidB = b?.uuid || '';
+    return uuidB.localeCompare(uuidA);
+  })[0];
+}
+
+export function findSubscriptionLicenseForCourseCatalogs(catalogsWithCourse = [], licensesByCatalog = {}) {
+  if (!catalogsWithCourse.length || !Object.keys(licensesByCatalog).length) {
+    return null;
+  }
+
+  const matchingLicensesByUuid = new Map();
+  const normalizedCatalogsWithCourse = new Set(catalogsWithCourse.map(normalizeCatalogUuid));
+  Object.entries(licensesByCatalog).forEach(([catalogUuid, licenses]) => {
+    if (!normalizedCatalogsWithCourse.has(normalizeCatalogUuid(catalogUuid))) {
+      return;
+    }
+
+    licenses.forEach((license) => {
+      if (license?.uuid) {
+        matchingLicensesByUuid.set(license.uuid, license);
+      }
+    });
+  });
+
+  return selectBestLicense(Array.from(matchingLicensesByUuid.values()));
+}
+
+export function resolveApplicableSubscriptionLicense({
+  subscriptionLicense = null,
+  subscriptionLicenses = [], // eslint-disable-line @typescript-eslint/no-unused-vars
+  licensesByCatalog = {},
+  catalogsWithCourse = [],
+}) {
+  // Multi-license mode is active when the backend provides a catalog-to-license index
+  const isMultiLicenseMode = Object.keys(licensesByCatalog || {}).length > 0;
+
+  // When multi-license is enabled, find the best license matching the course's catalogs
+  if (isMultiLicenseMode) {
+    return findSubscriptionLicenseForCourseCatalogs(catalogsWithCourse, licensesByCatalog);
+  }
+
+  // Fallback: evaluate only the single pre-selected subscription license (legacy path)
+  const licensesToEvaluate = [subscriptionLicense].filter(Boolean);
+  return selectBestLicense(getApplicableSubscriptionLicenses(licensesToEvaluate, catalogsWithCourse));
+}
+
+export function determineSubscriptionLicenseApplicable(
+  subscriptionLicense,
+  catalogsWithCourse = [],
+  licensesByCatalog = {},
+  subscriptionLicenses = [],
+) {
+  return !!resolveApplicableSubscriptionLicense({
+    subscriptionLicense,
+    subscriptionLicenses,
+    licensesByCatalog,
+    catalogsWithCourse,
+  });
 }
 
 /**

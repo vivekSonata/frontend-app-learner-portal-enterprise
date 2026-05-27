@@ -3,9 +3,9 @@ import PropTypes from 'prop-types';
 import { getConfig } from '@edx/frontend-platform/config';
 import { logError } from '@edx/frontend-platform/logging';
 import { Configure, InstantSearch } from 'react-instantsearch-dom';
-import { deleteRefinementAction, SearchContext } from '@edx/frontend-enterprise-catalog-search';
+import { deleteRefinementAction, SearchContext } from '@2uinc/frontend-enterprise-catalog-search';
 import { AppContext } from '@edx/frontend-platform/react';
-import FacetListRefinement from '@edx/frontend-enterprise-catalog-search/FacetListRefinement';
+import FacetListRefinement from '@2uinc/frontend-enterprise-catalog-search/FacetListRefinement';
 import { FormattedMessage, useIntl } from '@edx/frontend-platform/i18n';
 import {
   Button, Container, Form, StatefulButton,

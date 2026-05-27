@@ -1,5 +1,5 @@
 import { ensureConfig, getConfig } from '@edx/frontend-platform';
-import { hasFeatureFlagEnabled } from '@edx/frontend-enterprise-utils';
+import { hasFeatureFlagEnabled } from '@2uinc/frontend-enterprise-utils';
 import { Button, Hyperlink, MailtoLink } from '@openedx/paragon';
 import { isNil } from 'lodash-es';
 import { logError } from '@edx/frontend-platform/logging';
@@ -26,6 +26,8 @@ import {
   findHighestLevelEntitlementSku,
   findHighestLevelSkuByEntityModeType,
   isEnrollmentUpgradeable,
+  normalizeCatalogUuid,
+  resolveApplicableSubscriptionLicense,
   START_DATE_DEFAULT_TO_TODAY_THRESHOLD_DAYS,
 } from '../../app/data';
 
@@ -131,13 +133,53 @@ export function getDefaultProgram({ programs = [], isProgramsEnabled = true }) {
   return programs[0];
 }
 
-export function formatProgramType(programType) {
+export function formatProgramType(programType, intl) {
   switch (programType) {
     case PROGRAM_TYPE_MAP.MICROMASTERS:
+      if (intl) {
+        return intl.formatMessage({
+          id: 'enterprise.program.type.micromasters',
+          defaultMessage: 'MicroMasters® Program',
+          description: 'Localized label for the MicroMasters program type',
+        });
+      }
+      return <>{programType}<sup>&reg;</sup> Program</>;
     case PROGRAM_TYPE_MAP.MICROBACHELORS:
+      if (intl) {
+        return intl.formatMessage({
+          id: 'enterprise.program.type.microbachelors',
+          defaultMessage: 'MicroBachelors® Program',
+          description: 'Localized label for the MicroBachelors program type',
+        });
+      }
       return <>{programType}<sup>&reg;</sup> Program</>;
     case PROGRAM_TYPE_MAP.MASTERS:
+      if (intl) {
+        return intl.formatMessage({
+          id: 'enterprise.program.type.masters',
+          defaultMessage: 'Master\'s',
+          description: 'Localized label for the Masters program type',
+        });
+      }
       return 'Master\'s';
+    case PROGRAM_TYPE_MAP.PROFESSIONAL_CERTIFICATE:
+      return intl ? intl.formatMessage({
+        id: 'enterprise.program.type.professional.certificate',
+        defaultMessage: 'Professional Certificate',
+        description: 'Localized label for the Professional Certificate program type',
+      }) : programType;
+    case PROGRAM_TYPE_MAP.XSERIES:
+      return intl ? intl.formatMessage({
+        id: 'enterprise.program.type.xseries',
+        defaultMessage: 'XSeries Program',
+        description: 'Localized label for the XSeries program type',
+      }) : programType;
+    case PROGRAM_TYPE_MAP.CREDIT:
+      return intl ? intl.formatMessage({
+        id: 'enterprise.program.type.credit',
+        defaultMessage: 'Credit',
+        description: 'Localized label for the Credit program type',
+      }) : programType;
     default:
       return programType;
   }
@@ -445,62 +487,52 @@ export const getCouponCodesDisabledEnrollmentReasonType = ({
   return undefined;
 };
 
-/**
- * Determines whether the learner's subscription license is applicable to the course being
- * viewed, based on the enterprise catalogs associated with the learner's subscription license.
- * @param {Object} args
- * @param {array} args.catalogsWithCourse List of catalogs that will be checked against the license.
- * @param {Object} args.subscriptionLicense Learner's subscription license.
- * @returns {boolean} True if the learner's subscription license is applicable to the course being viewed.
- */
-function determineLicenseApplicableToCourse({
-  catalogsWithCourse,
-  subscriptionLicense,
-}) {
-  if (!subscriptionLicense) {
-    return false;
-  }
-  return catalogsWithCourse.includes(
-    subscriptionLicense.subscriptionPlan.enterpriseCatalogUuid,
-  );
-}
-
 export const getSubscriptionDisabledEnrollmentReasonType = ({
   customerAgreement,
   catalogsWithCourse,
   subscriptionLicense,
+  subscriptionLicenses = [],
+  licensesByCatalog,
   hasEnterpriseAdminUsers,
 }) => {
   // If customer does not have a subscription plan(s) containing the
   // course being viewed, return early.
+  const normalizedCatalogsWithCourse = new Set(catalogsWithCourse.map(normalizeCatalogUuid));
   const hasSubscriptionPlanApplicableToCourse = !!customerAgreement?.availableSubscriptionCatalogs.some(
-    subscriptionCatalogUuid => catalogsWithCourse.includes(subscriptionCatalogUuid),
+    subscriptionCatalogUuid => normalizedCatalogsWithCourse.has(normalizeCatalogUuid(subscriptionCatalogUuid)),
   );
   if (!hasSubscriptionPlanApplicableToCourse) {
     return undefined;
   }
 
-  // If customer has a subscription plan(s) containing the course being viewed that is not expired
-  // nor exhausted but learner has no subscription license application to the course, change `reasonType`
-  // to use the `SUBSCRIPTION_LICENSE_NOT_ASSIGNED` message.
-  const isLicenseApplicableToCourse = determineLicenseApplicableToCourse({
-    catalogsWithCourse,
+  const applicableSubscriptionLicense = resolveApplicableSubscriptionLicense({
     subscriptionLicense,
+    subscriptionLicenses,
+    licensesByCatalog,
+    catalogsWithCourse,
   });
-  if (!isLicenseApplicableToCourse) {
-    return parseReasonTypeBasedOnEnterpriseAdmins({
-      hasEnterpriseAdminUsers,
-      reasonTypes: {
-        hasAdmins: DISABLED_ENROLL_REASON_TYPES.SUBSCRIPTION_LICENSE_NOT_ASSIGNED,
-        hasNoAdmins: DISABLED_ENROLL_REASON_TYPES.SUBSCRIPTION_LICENSE_NOT_ASSIGNED_NO_ADMINS,
-      },
-    });
+
+  // If an active, current license covers this course, there is no disabled reason.
+  if (applicableSubscriptionLicense) {
+    return undefined;
   }
 
-  // If learner's subscription license is expired, change `reasonType` to use
-  // the `SUBSCRIPTION_EXPIRED` message.
-  const hasExpiredSubscriptionLicense = !subscriptionLicense.subscriptionPlan.isCurrent;
-  if (hasExpiredSubscriptionLicense) {
+  // No applicable license found. Determine WHY by checking the raw license(s)
+  // for expired or revoked status before concluding "not assigned".
+  // resolveApplicableSubscriptionLicense filters out expired/revoked licenses,
+  // so we must inspect the raw inputs to distinguish the reason.
+  const rawLicensesToCheck = subscriptionLicenses.length > 0
+    ? subscriptionLicenses
+    : [subscriptionLicense].filter(Boolean);
+
+  // Check if any license covering this course's catalogs is expired.
+  const hasExpiredLicense = rawLicensesToCheck.some((license) => {
+    const catalogUuid = license?.subscriptionPlan?.enterpriseCatalogUuid;
+    return catalogUuid
+      && normalizedCatalogsWithCourse.has(normalizeCatalogUuid(catalogUuid))
+      && !license.subscriptionPlan.isCurrent;
+  });
+  if (hasExpiredLicense) {
     return parseReasonTypeBasedOnEnterpriseAdmins({
       hasEnterpriseAdminUsers,
       reasonTypes: {
@@ -510,14 +542,25 @@ export const getSubscriptionDisabledEnrollmentReasonType = ({
     });
   }
 
-  // If learner's subscription license is revoked/deactivated, change `reasonType` to use
-  // the `SUBSCRIPTION_DEACTIVATED` message.
-  if (subscriptionLicense.status === LICENSE_STATUS.REVOKED) {
+  // Check if any license covering this course's catalogs is revoked/deactivated.
+  const hasRevokedLicense = rawLicensesToCheck.some((license) => {
+    const catalogUuid = license?.subscriptionPlan?.enterpriseCatalogUuid;
+    return catalogUuid
+      && normalizedCatalogsWithCourse.has(normalizeCatalogUuid(catalogUuid))
+      && license.status === LICENSE_STATUS.REVOKED;
+  });
+  if (hasRevokedLicense) {
     return DISABLED_ENROLL_REASON_TYPES.SUBSCRIPTION_DEACTIVATED;
   }
 
-  // There is no applicable subscriptions-related reason for disabled enrollment.
-  return undefined;
+  // Learner truly has no license for this course.
+  return parseReasonTypeBasedOnEnterpriseAdmins({
+    hasEnterpriseAdminUsers,
+    reasonTypes: {
+      hasAdmins: DISABLED_ENROLL_REASON_TYPES.SUBSCRIPTION_LICENSE_NOT_ASSIGNED,
+      hasNoAdmins: DISABLED_ENROLL_REASON_TYPES.SUBSCRIPTION_LICENSE_NOT_ASSIGNED_NO_ADMINS,
+    },
+  });
 };
 
 export const getEnterpriseOffersDisabledEnrollmentReasonType = ({
@@ -647,6 +690,8 @@ export const getMissingApplicableSubsidyReason = ({
   couponsOverview,
   customerAgreement,
   subscriptionLicense,
+  subscriptionLicenses,
+  licensesByCatalog,
   containsContentItems,
   missingSubsidyAccessPolicyReason,
   enterpriseOffers,
@@ -670,6 +715,8 @@ export const getMissingApplicableSubsidyReason = ({
     customerAgreement,
     catalogsWithCourse,
     subscriptionLicense,
+    subscriptionLicenses,
+    licensesByCatalog,
     hasEnterpriseAdminUsers,
   });
   const enterpriseOffersDisabledEnrollmentReasonType = getEnterpriseOffersDisabledEnrollmentReasonType({

@@ -117,6 +117,7 @@ describe('useUserSubsidyApplicableToCourse', () => {
       data: {
         customerAgreement: undefined,
         subscriptionLicense: undefined,
+        subscriptionLicenses: [],
         subscriptionPlan: undefined,
       },
     });
@@ -317,6 +318,79 @@ describe('useUserSubsidyApplicableToCourse', () => {
       canRequestLearnerCredit: false,
       learnerCreditRequestablePolicy: null,
       learnerCreditRequestReason: null,
+    });
+  });
+
+  it('finds applicable subscription license from multiple licenses', () => {
+    const matchingSubscriptionLicense = {
+      ...mockSubscriptionLicense,
+      uuid: 'matching-license-uuid',
+      status: LICENSE_STATUS.ACTIVATED,
+      discountType: 'percentage',
+      discountValue: 100,
+      subscriptionPlan: {
+        enterpriseCatalogUuid: 'matching-catalog-uuid',
+        isCurrent: true,
+      },
+    };
+    getSubsidyToApplyForCourse.mockReturnValueOnce({
+      subsidyType: LICENSE_SUBSIDY_TYPE,
+    });
+
+    useSubscriptions.mockReturnValueOnce({
+      data: {
+        subscriptionLicense: undefined,
+        subscriptionLicenses: [
+          {
+            ...mockSubscriptionLicense,
+            uuid: 'non-matching-license-uuid',
+            status: LICENSE_STATUS.ACTIVATED,
+            subscriptionPlan: {
+              enterpriseCatalogUuid: 'other-catalog-uuid',
+              isCurrent: true,
+            },
+          },
+          matchingSubscriptionLicense,
+        ],
+        licensesByCatalog: {
+          'other-catalog-uuid': [{
+            ...mockSubscriptionLicense,
+            uuid: 'non-matching-license-uuid',
+            status: LICENSE_STATUS.ACTIVATED,
+            subscriptionPlan: {
+              enterpriseCatalogUuid: 'other-catalog-uuid',
+              isCurrent: true,
+            },
+          }],
+          'matching-catalog-uuid': [matchingSubscriptionLicense],
+        },
+      },
+    });
+
+    useEnterpriseCustomerContainsContentSuspense.mockReturnValueOnce({
+      data: {
+        catalogList: ['matching-catalog-uuid'],
+        containsContentItems: true,
+      },
+    });
+    useCourseRedemptionEligibility.mockReturnValue({
+      data: {
+        isPolicyRedemptionEnabled: false,
+        redeemableSubsidyAccessPolicy: undefined,
+      },
+    });
+
+    renderHook(() => useUserSubsidyApplicableToCourse());
+
+    expect(getSubsidyToApplyForCourse).toHaveBeenCalledWith({
+      applicableSubscriptionLicense: matchingSubscriptionLicense,
+      applicableCouponCode: undefined,
+      applicableEnterpriseOffer: undefined,
+      applicableSubsidyAccessPolicy: {
+        isPolicyRedemptionEnabled: false,
+        redeemableSubsidyAccessPolicy: null,
+        availableCourseRuns: [],
+      },
     });
   });
 

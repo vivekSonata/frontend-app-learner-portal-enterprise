@@ -1,18 +1,26 @@
-import { SearchIndex } from 'algoliasearch/lite';
+import algoliasearch from 'algoliasearch';
 import { catalogFacetService } from '../catalogFacetService';
 import { FACET_FIELDS } from '../../constants';
 
-describe('catalogFacetService', () => {
-  let mockIndex: jest.Mocked<SearchIndex>;
+const mockSearch = jest.fn();
+const mockInitIndex = jest.fn(() => ({ search: mockSearch }));
+jest.mock('algoliasearch', () => jest.fn(() => ({ initIndex: mockInitIndex })));
 
+jest.mock('@edx/frontend-platform/config', () => ({
+  getConfig: jest.fn(() => ({
+    ALGOLIA_APP_ID: 'test-app-id',
+    ALGOLIA_SEARCH_API_KEY: 'test-key',
+    ALGOLIA_INDEX_NAME: 'test-index',
+  })),
+}));
+
+describe('catalogFacetService', () => {
   beforeEach(() => {
-    mockIndex = {
-      search: jest.fn(),
-    } as any;
+    jest.clearAllMocks();
   });
 
   describe('getFacetSnapshot', () => {
-    it('fetches facets from Algolia with default filters', async () => {
+    it('fetches facets from Algolia with default content_type filter', async () => {
       const mockResponse = {
         facets: {
           [FACET_FIELDS.SKILL_NAMES]: { Skill1: 10, Skill2: 5 },
@@ -24,11 +32,11 @@ describe('catalogFacetService', () => {
         hits: [],
         nbHits: 0,
       };
-      mockIndex.search.mockResolvedValue(mockResponse as any);
+      mockSearch.mockResolvedValue(mockResponse);
 
-      const { snapshot, trace } = await catalogFacetService.getFacetSnapshot(mockIndex);
+      const { snapshot, trace } = await catalogFacetService.getFacetSnapshot();
 
-      expect(mockIndex.search).toHaveBeenCalledWith('', expect.objectContaining({
+      expect(mockSearch).toHaveBeenCalledWith('', expect.objectContaining({
         facets: ['*'],
         hitsPerPage: 0,
         facetFilters: [['content_type:course']],
@@ -41,19 +49,19 @@ describe('catalogFacetService', () => {
     });
 
     it('handles missing facets in Algolia response', async () => {
-      mockIndex.search.mockResolvedValue({
+      mockSearch.mockResolvedValue({
         facets: undefined,
         hits: [],
         nbHits: 0,
-      } as any);
+      });
 
-      const { snapshot } = await catalogFacetService.getFacetSnapshot(mockIndex);
+      const { snapshot } = await catalogFacetService.getFacetSnapshot();
 
       expect(snapshot.skill_names).toEqual([]);
       expect(snapshot.subjects).toEqual([]);
     });
 
-    it('applies enterprise catalog filters if context is provided', async () => {
+    it('applies enterprise catalog UUID filters when context provides catalog mapping', async () => {
       const context = {
         searchCatalogs: ['cat-1'],
         catalogUuidsToCatalogQueryUuids: {
@@ -61,15 +69,11 @@ describe('catalogFacetService', () => {
         },
       };
 
-      mockIndex.search.mockResolvedValue({
-        facets: {},
-        hits: [],
-        nbHits: 0,
-      } as any);
+      mockSearch.mockResolvedValue({ facets: {}, hits: [], nbHits: 0 });
 
-      await catalogFacetService.getFacetSnapshot(mockIndex, {}, context as any);
+      await catalogFacetService.getFacetSnapshot({}, context as any);
 
-      expect(mockIndex.search).toHaveBeenCalledWith('', expect.objectContaining({
+      expect(mockSearch).toHaveBeenCalledWith('', expect.objectContaining({
         facetFilters: [
           ['content_type:course'],
           ['enterprise_catalog_query_uuids:query-uuid-1'],
@@ -77,23 +81,32 @@ describe('catalogFacetService', () => {
       }));
     });
 
-    it('ignores catalog filters if mapping is missing', async () => {
+    it('omits catalog UUID filters when UUID mapping is absent', async () => {
       const context = {
         searchCatalogs: ['cat-1'],
-        // catalogUuidsToCatalogQueryUuids is missing
+        // catalogUuidsToCatalogQueryUuids intentionally missing
       };
 
-      mockIndex.search.mockResolvedValue({
-        facets: {},
-        hits: [],
-        nbHits: 0,
-      } as any);
+      mockSearch.mockResolvedValue({ facets: {}, hits: [], nbHits: 0 });
 
-      await catalogFacetService.getFacetSnapshot(mockIndex, {}, context as any);
+      await catalogFacetService.getFacetSnapshot({}, context as any);
 
-      expect(mockIndex.search).toHaveBeenCalledWith('', expect.objectContaining({
+      expect(mockSearch).toHaveBeenCalledWith('', expect.objectContaining({
         facetFilters: [['content_type:course']],
       }));
+    });
+
+    it('uses the provided search index instead of constructing the default Algolia index', async () => {
+      const explicitIndexSearch = jest.fn().mockResolvedValue({ facets: {}, hits: [], nbHits: 0 });
+      const explicitIndex = { search: explicitIndexSearch };
+
+      await catalogFacetService.getFacetSnapshot({}, undefined, explicitIndex as any);
+
+      expect(explicitIndexSearch).toHaveBeenCalledWith('', expect.objectContaining({
+        facetFilters: [['content_type:course']],
+      }));
+      expect(algoliasearch).not.toHaveBeenCalled();
+      expect(mockInitIndex).not.toHaveBeenCalled();
     });
   });
 });

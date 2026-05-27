@@ -1,7 +1,7 @@
 import {
   useContext, useEffect, useMemo, useState,
 } from 'react';
-import { SearchContext } from '@edx/frontend-enterprise-catalog-search';
+import { SearchContext } from '@2uinc/frontend-enterprise-catalog-search';
 import { logError } from '@edx/frontend-platform/logging';
 import { SkillsContext } from '../SkillsContextProvider';
 import { checkValidGoalAndJobSelected } from '../../utils/skills-quiz';
