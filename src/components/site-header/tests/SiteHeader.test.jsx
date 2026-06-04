@@ -9,7 +9,12 @@ import { getConfig } from '@edx/frontend-platform/config';
 import SiteHeader from '../SiteHeader';
 
 import { renderWithRouter, renderWithRouterProvider } from '../../../utils/tests';
-import { useAcademies, useEnterpriseCustomer, useEnterpriseLearner } from '../../app/data';
+import {
+  useAcademies,
+  useEnterpriseCustomer,
+  useEnterpriseLearner,
+  useHasValidLicenseOrSubscriptionRequestsEnabled,
+} from '../../app/data';
 import {
   academiesFactory,
   authenticatedUserFactory,
@@ -21,6 +26,7 @@ jest.mock('../../app/data', () => ({
   useEnterpriseLearner: jest.fn(),
   useAcademies: jest.fn(),
   useEnterpriseCustomer: jest.fn(),
+  useHasValidLicenseOrSubscriptionRequestsEnabled: jest.fn(),
   useIsAssignmentsOnlyLearner: jest.fn(),
 }));
 
@@ -81,6 +87,7 @@ describe('<SiteHeader />', () => {
       LOGOUT_URL: process.env.LOGOUT_URL,
     });
     useEnterpriseCustomer.mockReturnValue({ data: mockEnterpriseCustomer });
+    useHasValidLicenseOrSubscriptionRequestsEnabled.mockReturnValue(true);
     useEnterpriseLearner.mockReturnValue({
       data: {
         enterpriseCustomer: mockEnterpriseCustomer,
@@ -187,5 +194,20 @@ describe('<SiteHeader />', () => {
     } else {
       expect(getSmarterLogo).not.toBeInTheDocument();
     }
+  });
+
+  test('renders Find a Course when one academy is enabled but learner is not subscription eligible', () => {
+    useEnterpriseCustomer.mockReturnValue({
+      data: enterpriseCustomerFactory({ enable_one_academy: true }),
+    });
+    useAcademies.mockReturnValue({ data: academiesFactory(1) });
+    useHasValidLicenseOrSubscriptionRequestsEnabled.mockReturnValue(false);
+
+    renderWithRouter(
+      <SiteHeaderWithContext />,
+    );
+
+    expect(screen.getByText('Find a Course')).toBeInTheDocument();
+    expect(screen.queryByText('Go to Academy')).not.toBeInTheDocument();
   });
 });

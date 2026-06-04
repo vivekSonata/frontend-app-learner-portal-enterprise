@@ -17,6 +17,8 @@ import { enterpriseCustomerFactory } from '../../app/data/services/data/__factor
 import { features } from '../../../config';
 import { messages } from '../../search-unavailable-alert/SearchUnavailableAlert';
 
+jest.mock('../SearchAcademy', () => () => <div data-testid="search-academy-section" />);
+
 jest.mock('../../app/data', () => ({
   ...jest.requireActual('../../app/data'),
   useEnterpriseCustomer: jest.fn(),
@@ -108,6 +110,37 @@ describe('<Search />', () => {
 
     expect(screen.queryByText('Videos Now Available with Your Subscription')).toBeNull();
   });
+
+  it('renders the academies section for eligible subscription learners', () => {
+    useEnterpriseCustomer.mockReturnValue({
+      data: enterpriseCustomerFactory({ enable_academies: true }),
+    });
+    useHasValidLicenseOrSubscriptionRequestsEnabled.mockReturnValue(true);
+
+    renderWithRouter(
+      <SearchWrapper>
+        <Search />
+      </SearchWrapper>,
+    );
+
+    expect(screen.getByTestId('search-academy-section')).toBeInTheDocument();
+  });
+
+  it('does not render the academies section for ineligible subscription learners', () => {
+    useEnterpriseCustomer.mockReturnValue({
+      data: enterpriseCustomerFactory({ enable_academies: true }),
+    });
+    useHasValidLicenseOrSubscriptionRequestsEnabled.mockReturnValue(false);
+
+    renderWithRouter(
+      <SearchWrapper>
+        <Search />
+      </SearchWrapper>,
+    );
+
+    expect(screen.queryByTestId('search-academy-section')).not.toBeInTheDocument();
+  });
+
   it.each(
     generateTestPermutations({
       canOnlyViewHighlights: [true, false],

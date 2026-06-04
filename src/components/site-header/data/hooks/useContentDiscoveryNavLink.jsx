@@ -1,11 +1,17 @@
 import { NavLink } from 'react-router-dom';
 import { FormattedMessage } from '@edx/frontend-platform/i18n';
-import { useAcademies, useEnterpriseCustomer } from '../../../app/data';
+import {
+  useAcademies,
+  useEnterpriseCustomer,
+  useHasValidLicenseOrSubscriptionRequestsEnabled,
+} from '../../../app/data';
 
 export default function useContentDiscoveryNavLink(mainMenuLinkClassName) {
   const { data: enterpriseCustomer } = useEnterpriseCustomer();
   const { data: academies } = useAcademies();
-  if (enterpriseCustomer.enableOneAcademy && academies.length === 1) {
+  const hasValidLicenseOrSubRequest = useHasValidLicenseOrSubscriptionRequestsEnabled();
+
+  if (enterpriseCustomer.enableOneAcademy && hasValidLicenseOrSubRequest && academies.length === 1) {
     return (
       <NavLink to={`/${enterpriseCustomer.slug}/academies/${academies[0].uuid}`} className={mainMenuLinkClassName}>
         <FormattedMessage

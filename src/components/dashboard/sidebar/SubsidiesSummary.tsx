@@ -15,6 +15,7 @@ import {
   useEnterpriseCustomer,
   useEnterpriseOffers,
   useHasAvailableSubsidiesOrRequests,
+  useHasValidLicenseOrSubscriptionRequestsEnabled,
   useIsAssignmentsOnlyLearner,
   useCouponCodes,
 } from '../../app/data';
@@ -31,7 +32,8 @@ const SearchCoursesCta = ({
 }) => {
   const { data: enterpriseCustomer } = useEnterpriseCustomer<EnterpriseCustomer>();
   const { data: academies } = useAcademies();
-  const isOneAcademy = enterpriseCustomer?.enableOneAcademy;
+  const hasValidLicenseOrSubRequest = useHasValidLicenseOrSubscriptionRequestsEnabled();
+  const isOneAcademy = enterpriseCustomer?.enableOneAcademy && hasValidLicenseOrSubRequest;
 
   if (enterpriseCustomer.disableSearch || !showSearchCoursesCta || isProgramProgressPage) {
     return null;

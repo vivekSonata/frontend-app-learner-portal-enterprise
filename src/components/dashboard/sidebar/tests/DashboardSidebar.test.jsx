@@ -30,6 +30,7 @@ import {
   useEnterpriseLearner,
   useEnterpriseOffers,
   useHasAvailableSubsidiesOrRequests,
+  useHasValidLicenseOrSubscriptionRequestsEnabled,
   useIsAssignmentsOnlyLearner,
   useRedeemablePolicies,
   useSubscriptions,
@@ -55,6 +56,7 @@ jest.mock('../../../app/data', () => ({
   useBrowseAndRequest: jest.fn(),
   useIsAssignmentsOnlyLearner: jest.fn(),
   useHasAvailableSubsidiesOrRequests: jest.fn(),
+  useHasValidLicenseOrSubscriptionRequestsEnabled: jest.fn(),
   useAcademies: jest.fn(),
   useEnterpriseLearner: jest.fn(),
 }));
@@ -136,6 +138,7 @@ describe('<DashboardSidebar />', () => {
     useHasAvailableSubsidiesOrRequests.mockReturnValue(
       useMockHasAvailableSubsidyOrRequests(mockUseActiveSubsidyOrRequestsData),
     );
+    useHasValidLicenseOrSubscriptionRequestsEnabled.mockReturnValue(true);
     useAcademies.mockReturnValue({ data: academiesFactory(3) });
     useEnterpriseLearner.mockReturnValue({
       data: {
@@ -439,6 +442,41 @@ describe('<DashboardSidebar />', () => {
     useEnterpriseCustomer.mockReturnValue({ data: enterpriseCustomerFactory({ enable_one_academy: true }) });
     renderWithRouter(<DashboardSidebarWithContext />);
     expect(screen.getByText('Go to Academy')).toBeInTheDocument();
+  });
+
+  test('Learner credit summary card shows Find a course when one academy is enabled but learner is not subscription eligible', () => {
+    const policyExpirationDate = '2030-01-01 12:00:00Z';
+    useIsAssignmentsOnlyLearner.mockReturnValue(false);
+    useRedeemablePolicies.mockReturnValue({
+      data: {
+        redeemablePolicies: [{
+          uuid: 'policy-uuid',
+          subsidyExpirationDate: policyExpirationDate,
+          active: true,
+          policyType: POLICY_TYPES.ASSIGNED_CREDIT,
+          learnerContentAssignments: [
+            { state: ASSIGNMENT_TYPES.ALLOCATED },
+          ],
+        }],
+        learnerContentAssignments: {
+          ...emptyRedeemableLearnerCreditPolicies.learnerContentAssignments,
+          allocatedAssignments: [{ state: ASSIGNMENT_TYPES.ALLOCATED }],
+          hasAllocatedAssignments: true,
+          assignmentsForDisplay: [{ state: ASSIGNMENT_TYPES.ALLOCATED }],
+          hasAssignmentsForDisplay: true,
+        },
+      },
+    });
+    useHasAvailableSubsidiesOrRequests.mockReturnValue(useMockHasAvailableSubsidyOrRequests({
+      mockHasAvailableLearnerCreditPolicies: true,
+      mockLearnerCreditSummaryCardData: { expirationDate: dayjs().add(70, 'days').toISOString() },
+    }));
+    useEnterpriseCustomer.mockReturnValue({ data: enterpriseCustomerFactory({ enable_one_academy: true }) });
+    useHasValidLicenseOrSubscriptionRequestsEnabled.mockReturnValue(false);
+
+    renderWithRouter(<DashboardSidebarWithContext />);
+    expect(screen.getByText('Find a course')).toBeInTheDocument();
+    expect(screen.queryByText('Go to Academy')).not.toBeInTheDocument();
   });
 
   test('Find a course button is not rendered when user has no coupon codes or license subsidy', () => {

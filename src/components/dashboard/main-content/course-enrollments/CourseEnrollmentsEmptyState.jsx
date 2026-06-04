@@ -2,7 +2,12 @@ import { FormattedMessage } from '@edx/frontend-platform/i18n';
 import { Button } from '@openedx/paragon';
 import { Link } from 'react-router-dom';
 
-import { useCanOnlyViewHighlights, useAcademies, useEnterpriseFeatures } from '../../../app/data';
+import {
+  useCanOnlyViewHighlights,
+  useAcademies,
+  useEnterpriseFeatures,
+  useHasValidLicenseOrSubscriptionRequestsEnabled,
+} from '../../../app/data';
 import { useGroupAssociationsAlert } from './data';
 import CourseRecommendations from '../CourseRecommendations';
 import GoToAcademy from '../../../academies/GoToAcademy';
@@ -12,6 +17,7 @@ const CourseEnrollmentsEmptyState = () => {
   const { data: canOnlyViewHighlightSets } = useCanOnlyViewHighlights();
   const { data: academies } = useAcademies();
   const { data: enterpriseFeatures } = useEnterpriseFeatures();
+  const hasValidLicenseOrSubRequest = useHasValidLicenseOrSubscriptionRequestsEnabled();
   const {
     showNewGroupAssociationAlert,
     dismissGroupAssociationAlert,
@@ -33,7 +39,7 @@ const CourseEnrollmentsEmptyState = () => {
     );
   }
 
-  if (enterpriseCustomer.enableOneAcademy && academies?.length === 1) {
+  if (enterpriseCustomer.enableOneAcademy && hasValidLicenseOrSubRequest && academies?.length === 1) {
     return <GoToAcademy />;
   }
 

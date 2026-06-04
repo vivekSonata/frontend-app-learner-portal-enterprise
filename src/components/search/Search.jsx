@@ -96,6 +96,11 @@ const Search = () => {
     closePathwayModal,
   } = useSearchPathwayModal();
 
+  const shouldShowAcademies = (
+    enterpriseCustomer.enableAcademies
+    && hasValidLicenseOrSubRequest
+  );
+
   const [shouldShowVideosBanner, setShouldShowVideosBanner] = useState(false);
 
   const enableVideos = (
@@ -204,7 +209,7 @@ const Search = () => {
             <Stack className="my-5" gap={5}>
               {shouldShowVideosBanner && <VideoBanner />}
               {!hasRefinements && <ContentHighlights />}
-              {canOnlyViewHighlightSets === false && enterpriseCustomer.enableAcademies
+              {canOnlyViewHighlightSets === false && shouldShowAcademies
               && <SearchAcademy />}
               {features.ENABLE_PATHWAYS && (canOnlyViewHighlightSets === false)
               && <SearchPathway filter={pathwayFilter} />}

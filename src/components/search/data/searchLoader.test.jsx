@@ -8,10 +8,13 @@ import makeSearchLoader from './searchLoader';
 import {
   extractEnterpriseCustomer,
   queryAcademiesList,
+  queryBrowseAndRequestConfiguration,
   queryContentHighlightSets,
+  querySubscriptions,
 } from '../../app/data';
 import { ensureAuthenticatedUser } from '../../app/routes/data/utils';
 import { enterpriseCustomerFactory } from '../../app/data/services/data/__factories__';
+import { SUBSIDY_TYPE } from '../../../constants';
 
 jest.mock('../../app/routes/data/utils', () => ({
   ...jest.requireActual('../../app/routes/data/utils'),
@@ -35,14 +38,65 @@ const mockAcademies = [
   },
 ];
 
+const mockSubscriptions = {
+  subscriptionLicense: {
+    status: 'activated',
+    subscriptionPlan: {
+      isCurrent: true,
+    },
+  },
+};
+
+const mockBrowseAndRequestConfiguration = {
+  subsidyRequestsEnabled: true,
+  subsidyType: SUBSIDY_TYPE.LICENSE,
+};
+
+const mockGetQueryData = jest.fn((queryKey) => {
+  const academiesQueryKey = queryAcademiesList(mockEnterpriseCustomer.uuid).queryKey;
+  const subscriptionsQueryKey = querySubscriptions(mockEnterpriseCustomer.uuid).queryKey;
+  const browseAndRequestConfigurationQueryKey = queryBrowseAndRequestConfiguration(
+    mockEnterpriseCustomer.uuid,
+  ).queryKey;
+
+  if (JSON.stringify(queryKey) === JSON.stringify(academiesQueryKey)) {
+    return mockAcademies;
+  }
+  if (JSON.stringify(queryKey) === JSON.stringify(subscriptionsQueryKey)) {
+    return mockSubscriptions;
+  }
+  if (JSON.stringify(queryKey) === JSON.stringify(browseAndRequestConfigurationQueryKey)) {
+    return mockBrowseAndRequestConfiguration;
+  }
+  return undefined;
+});
+
 const mockQueryClient = {
   ensureQueryData: jest.fn().mockResolvedValue({}),
-  getQueryData: jest.fn().mockReturnValue(mockAcademies),
+  getQueryData: mockGetQueryData,
 };
 
 describe('searchLoader', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockGetQueryData.mockImplementation((queryKey) => {
+      const academiesQueryKey = queryAcademiesList(mockEnterpriseCustomer.uuid).queryKey;
+      const subscriptionsQueryKey = querySubscriptions(mockEnterpriseCustomer.uuid).queryKey;
+      const browseAndRequestConfigurationQueryKey = queryBrowseAndRequestConfiguration(
+        mockEnterpriseCustomer.uuid,
+      ).queryKey;
+
+      if (JSON.stringify(queryKey) === JSON.stringify(academiesQueryKey)) {
+        return mockAcademies;
+      }
+      if (JSON.stringify(queryKey) === JSON.stringify(subscriptionsQueryKey)) {
+        return mockSubscriptions;
+      }
+      if (JSON.stringify(queryKey) === JSON.stringify(browseAndRequestConfigurationQueryKey)) {
+        return mockBrowseAndRequestConfiguration;
+      }
+      return undefined;
+    });
     ensureAuthenticatedUser.mockResolvedValue({ userId: 3 });
     getConfig.mockReturnValue({
       FEATURE_CONTENT_HIGHLIGHTS: false,
@@ -79,7 +133,7 @@ describe('searchLoader', () => {
 
     expect(await screen.findByText('hello world')).toBeInTheDocument();
 
-    expect(mockQueryClient.ensureQueryData).toHaveBeenCalledTimes(1);
+    expect(mockQueryClient.ensureQueryData).toHaveBeenCalledTimes(4);
     expect(mockQueryClient.ensureQueryData).toHaveBeenCalledWith(
       expect.objectContaining({
         queryKey: queryAcademiesList(mockEnterpriseCustomer.uuid).queryKey,
@@ -110,7 +164,7 @@ describe('searchLoader', () => {
 
     expect(await screen.findByText('hello world')).toBeInTheDocument();
 
-    expect(mockQueryClient.ensureQueryData).toHaveBeenCalledTimes(2);
+    expect(mockQueryClient.ensureQueryData).toHaveBeenCalledTimes(5);
     expect(mockQueryClient.ensureQueryData).toHaveBeenCalledWith(
       expect.objectContaining({
         queryKey: queryAcademiesList(mockEnterpriseCustomer.uuid).queryKey,
@@ -126,7 +180,11 @@ describe('searchLoader', () => {
   });
 
   it('Redirect learners whose enterprise has enabled one academy.', async () => {
-    extractEnterpriseCustomer.mockResolvedValue(enterpriseCustomerFactory({ enable_one_academy: true }));
+    extractEnterpriseCustomer.mockResolvedValue(enterpriseCustomerFactory({
+      uuid: mockEnterpriseCustomer.uuid,
+      enable_one_academy: true,
+      enable_academies: true,
+    }));
     const academiesQuery = queryAcademiesList(mockEnterpriseCustomer.uuid);
 
     when(mockQueryClient.ensureQueryData).calledWith(
@@ -184,5 +242,50 @@ describe('searchLoader', () => {
     await waitFor(() => {
       expect(screen.getByTestId('search-page')).toBeInTheDocument();
     });
+  });
+
+  it('does not redirect learners with one academy when they are not subscription eligible', async () => {
+    extractEnterpriseCustomer.mockResolvedValue(enterpriseCustomerFactory({
+      uuid: mockEnterpriseCustomer.uuid,
+      enable_one_academy: true,
+      enable_academies: true,
+    }));
+    mockGetQueryData.mockImplementation((queryKey) => {
+      const academiesQueryKey = queryAcademiesList(mockEnterpriseCustomer.uuid).queryKey;
+      const subscriptionsQueryKey = querySubscriptions(mockEnterpriseCustomer.uuid).queryKey;
+      const browseAndRequestConfigurationQueryKey = queryBrowseAndRequestConfiguration(
+        mockEnterpriseCustomer.uuid,
+      ).queryKey;
+
+      if (JSON.stringify(queryKey) === JSON.stringify(academiesQueryKey)) {
+        return mockAcademies;
+      }
+      if (JSON.stringify(queryKey) === JSON.stringify(subscriptionsQueryKey)) {
+        return { subscriptionLicense: null };
+      }
+      if (JSON.stringify(queryKey) === JSON.stringify(browseAndRequestConfigurationQueryKey)) {
+        return { subsidyRequestsEnabled: false, subsidyType: SUBSIDY_TYPE.LICENSE };
+      }
+      return undefined;
+    });
+
+    renderWithRouterProvider({
+      path: '/:enterpriseSlug/search',
+      element: <div data-testid="search-page" />,
+      loader: makeSearchLoader(mockQueryClient),
+    }, {
+      routes: [
+        {
+          path: '/:enterpriseCustomer/academies/:academyUUID',
+          element: <div data-testid="academy-details-page" />,
+        },
+      ],
+      initialEntries: [`/${mockEnterpriseCustomer.slug}/search`],
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('search-page')).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('academy-details-page')).not.toBeInTheDocument();
   });
 });
